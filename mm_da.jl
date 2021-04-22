@@ -2,41 +2,41 @@ using Statistics
 using LinearAlgebra
 
 include("etkf.jl")
-using .ETKF
+import .ETKF
 
 include("ens_forecast.jl")
-using .ens_forecast
+import .ens_forecast
 
 include("models.jl")
-using .Models
+import .Models
 
 include("integrators.jl")
-using .Integrators
+import .Integrators
 
 models = [Models.lorenz63_true, Models.lorenz63_err]
 model_true = Models.lorenz63_true
 n_models = length(models)
 D = 3
-obs_ops = [identity, identity]
-H = identity
+obs_ops = [I(D), I(D)]
+H = I(D)
 R = diagm(0=>0.1*ones(D))
-model_errs = [zeros(D, D), zeros(D, D)]
+model_errs = [0.01*I(D), 0.01*I(D)]
 ens_sizes = [20, 20]
 model_sizes = [D, D]
-integrator = rk4
+integrator = Integrators.rk4
 x0 = rand(D)
 t0 = 0.0
 Δt = 0.05
 outfreq = 5
 window = 10
 transient = 200
-ensembles = [init_ens(model=models[model], integrator=integrator, x0=x0, t0=t0,
+ensembles = [ens_forecast.init_ens(model=models[model], integrator=integrator, x0=x0, t0=t0,
                       outfreq=outfreq, Δt=Δt, ens_size=ens_sizes[model],
                       transient=transient) for model=1:n_models]
 n_cycles = 100
-ρ = 0.5
+ρ = 0.0
 
-info = mmda(x0, ensembles=ensembles, models=models, model_true=model_true,
+info = ens_forecast.mmda(x0=x0, ensembles=ensembles, models=models, model_true=model_true,
             obs_ops=obs_ops, H=H, model_errs=model_errs, integrator=integrator,
             ens_sizes=ens_sizes, Δt=Δt, window=window, n_cycles=n_cycles,
             outfreq=outfreq, model_sizes=model_sizes, R=R, ρ=ρ)

@@ -2,7 +2,7 @@ module ens_forecast
 
 include("etkf.jl")
 
-using .ETKF
+import .ETKF
 
 export init_ens, mmda
 
@@ -33,11 +33,15 @@ function init_ens(; model, integrator, x0, t0, outfreq, Δt, ens_size,
     return E
 end
 
-function mmda(; x0, ensembles::Vector{Matrix{float_type}}, models, model_true,
-                obs_ops, H, model_errs, integrator, ens_sizes::Vector{Integer},
-                Δt::float_type, window::Integer, n_cycles::Integer,
-                outfreq::Integer, model_sizes::Vector{Integer},
-                R, ρ) where {float_type<:AbstractFloat}
+function mmda(; x0::AbstractVector{float_type},
+                ensembles::AbstractVector{<:AbstractMatrix{float_type}},
+                models::AbstractVector{Function}, model_true::Function,
+                obs_ops::AbstractVector{<:AbstractMatrix}, H::AbstractMatrix,
+                model_errs::AbstractVector{<:AbstractMatrix{float_type}},
+                integrator::Function, ens_sizes::AbstractVector{int_type},
+                Δt::float_type, window::int_type, n_cycles::int_type,
+                outfreq::int_type, model_sizes::AbstractVector{int_type},
+                R::AbstractMatrix{float_type}, ρ::float_type) where {float_type<:AbstractFloat, int_type<:Integer}
     n_models = length(models)
     obs_err_dist = MvNormal(R)
     R_inv = inv(R)
@@ -65,7 +69,7 @@ function mmda(; x0, ensembles::Vector{Matrix{float_type}}, models, model_true,
             crps_uncorr[model, cycle] = xskillscore.crps_ensemble(x_true, E_array).values[1]
         end
 
-        y = H(x_true) + rand(obs_err_dist)
+        y = H*x_true + rand(obs_err_dist)
 
         # Iterative multi-model data assimilation
         for model=2:n_models
@@ -95,14 +99,14 @@ function mmda(; x0, ensembles::Vector{Matrix{float_type}}, models, model_true,
             # Assimilate the forecast of each ensemble member of the current
             # model as if it were an observation
             for i=1:m
-                E = etkf(E=E, R_inv=P_f_inv, H=H_model, y=E_model[:, i], Q=Q)
+                E = ETKF.etkf(E=E, R_inv=P_f_inv, H=H_model, y=E_model[:, i], Q=Q)
             end
 
             ensembles[model] = E
         end
 
         # Assimilate observations
-        E_a = etkf(E=ensembles[n_models], R_inv=R_inv, H=H, y=y)
+        E_a = ETKF.etkf(E=ensembles[n_models], R_inv=R_inv, H=H, y=y)
 
         for model=1:n_models
             # Map from reference model space to the current model space
