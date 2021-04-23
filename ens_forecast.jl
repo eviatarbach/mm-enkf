@@ -28,8 +28,8 @@ xarray = pyimport("xarray")
 function init_ens(; model, integrator, x0, t0, outfreq, Δt, ens_size,
                   transient=0)
     x0 = integrator(model, x0, 0., transient*outfreq*Δt, Δt)
-    E = integrator(model, x0, t0, ens_size*Δt*outfreq, Δt,
-                   inplace=false)[1:outfreq:end, :]'
+    E = copy(integrator(model, x0, t0, ens_size*Δt*outfreq, Δt,
+                        inplace=false)[1:outfreq:end, :]')
     return E
 end
 

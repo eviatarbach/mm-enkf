@@ -9,10 +9,15 @@ using Distributions
 """
 Ensemble transform Kalman filter (ETKF)
 """
-function etkf(; E, R_inv, inflation=1.0, H, y, Q)
+function etkf(; E::AbstractMatrix{float_type}, R_inv::AbstractMatrix{float_type},
+                inflation::float_type=1.0, H::AbstractMatrix,
+                y::AbstractVector{float_type},
+                Q::Union{AbstractMatrix{float_type}, Nothing}=nothing) where {float_type<:AbstractFloat}
     D, m = size(E)
 
-    E += rand(MvNormal(Q), m)
+    if Q !== nothing
+        E += rand(MvNormal(Q), m)
+    end
 
     x_m = mean(E, dims=2)
     X = (E .- x_m)/sqrt(m - 1)
