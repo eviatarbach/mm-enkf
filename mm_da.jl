@@ -13,7 +13,7 @@ import .Models
 include("integrators.jl")
 import .Integrators
 
-models = [Models.lorenz63_true, Models.lorenz63_err]
+models = [Models.lorenz63_err, Models.lorenz63_err2]
 model_true = Models.lorenz63_true
 n_models = length(models)
 D = 3
@@ -30,13 +30,17 @@ t0 = 0.0
 outfreq = 5
 window = 10
 transient = 200
-ensembles = [ens_forecast.init_ens(model=models[model], integrator=integrator, x0=x0, t0=t0,
-                      outfreq=outfreq, Δt=Δt, ens_size=ens_sizes[model],
-                      transient=transient) for model=1:n_models]
+ensembles = [ens_forecast.init_ens(model=models[model], integrator=integrator,
+                                   x0=x0, t0=t0, outfreq=outfreq, Δt=Δt,
+                                   ens_size=ens_sizes[model],
+                                   transient=transient) for model=1:n_models]
+x0 = ensembles[1][:, end]
 n_cycles = 100
 ρ = 0.0
 
-info = ens_forecast.mmda(x0=x0, ensembles=ensembles, models=models, model_true=model_true,
-            obs_ops=obs_ops, H=H, model_errs=model_errs, integrator=integrator,
-            ens_sizes=ens_sizes, Δt=Δt, window=window, n_cycles=n_cycles,
-            outfreq=outfreq, model_sizes=model_sizes, R=R, ρ=ρ)
+info = ens_forecast.mmda(x0=x0, ensembles=ensembles, models=models,
+                         model_true=model_true, obs_ops=obs_ops, H=H,
+                         model_errs=model_errs, integrator=integrator,
+                         ens_sizes=ens_sizes, Δt=Δt, window=window,
+                         n_cycles=n_cycles, outfreq=outfreq,
+                         model_sizes=model_sizes, R=R, ρ=ρ)

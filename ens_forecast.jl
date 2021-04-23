@@ -25,8 +25,11 @@ end
 xskillscore = pyimport("xskillscore")
 xarray = pyimport("xarray")
 
-function init_ens(; model, integrator, x0, t0, outfreq, Δt, ens_size,
-                  transient=0)
+function init_ens(; model::Function, integrator::Function,
+                    x0::AbstractVector{float_type}, t0::float_type,
+                    outfreq::int_type, Δt::float_type, ens_size::int_type,
+                    transient::Real=0) where {float_type<:AbstractFloat,
+                                              int_type<:Integer}
     x0 = integrator(model, x0, 0., transient*outfreq*Δt, Δt)
     E = copy(integrator(model, x0, t0, ens_size*Δt*outfreq, Δt,
                         inplace=false)[1:outfreq:end, :]')
@@ -35,9 +38,9 @@ end
 
 function mmda(; x0::AbstractVector{float_type},
                 ensembles::AbstractVector{<:AbstractMatrix{float_type}},
-                models::AbstractVector{Function}, model_true::Function,
+                models::AbstractVector{<:Function}, model_true::Function,
                 obs_ops::AbstractVector{<:AbstractMatrix}, H::AbstractMatrix,
-                model_errs::AbstractVector{<:AbstractMatrix{float_type}},
+                model_errs::AbstractVector{<:Union{AbstractMatrix{float_type}, Nothing}},
                 integrator::Function, ens_sizes::AbstractVector{int_type},
                 Δt::float_type, window::int_type, n_cycles::int_type,
                 outfreq::int_type, model_sizes::AbstractVector{int_type},
@@ -89,12 +92,16 @@ function mmda(; x0::AbstractVector{float_type},
             P_f = X*X'
             P_f_inv = inv(P_f)
 
-            # Estimate model error covariance based on innovations
-            d = y - H_model_prime*x_m
-            Q_est = inv(H_model_prime)*(d*d' - R - H_model_prime*P_f*H_model_prime')*inv(H_model_prime)'
+            if model_errs[model] !== nothing
+                # Estimate model error covariance based on innovations
+                d = y - H_model_prime*x_m
+                Q_est = inv(H_model_prime)*(d*d' - R - H_model_prime*P_f*H_model_prime')*inv(H_model_prime)'
 
-            # Time filtering
-            Q = ρ*Q_est + (1 - ρ)*model_errs[model]
+                # Time filtering
+                Q = ρ*Q_est + (1 - ρ)*model_errs[model]
+            else
+                Q = nothing
+            end
 
             # Assimilate the forecast of each ensemble member of the current
             # model as if it were an observation

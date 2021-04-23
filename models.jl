@@ -62,4 +62,7 @@ lorenz63_true = (t, u)->lorenz63(t, u, Dict("σ" => 10, "β" => 8/3, "ρ" => 28)
 
 lorenz63_err = (t, u)->lorenz63(t, u, Dict("σ" => 10.1, "β" => 8/3, "ρ" => 27))
 
+lorenz63_err2 = (t, u)->lorenz63(t, u, Dict("σ" => 9.9, "β" => 8/3 - 0.1,
+                                            "ρ" => 28))
+
 end
