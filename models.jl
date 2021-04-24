@@ -58,11 +58,22 @@ function lorenz63(t, u, p)
    return du
 end
 
+function lorenz63_stochastic(t, u, p)
+   x, y, z = u
+
+   du = zeros(3)
+   du[1] = p["σ"]*(u[2]-u[1])
+   du[2] = u[1]*(p["ρ"]-u[3]) - u[2]
+   du[3] = u[1]*u[2] - p["β"]*u[3]
+
+   return du + p["r"]*randn(3)
+end
+
 lorenz63_true = (t, u)->lorenz63(t, u, Dict("σ" => 10, "β" => 8/3, "ρ" => 28))
 
-lorenz63_err = (t, u)->lorenz63(t, u, Dict("σ" => 10.1, "β" => 8/3, "ρ" => 27))
+lorenz63_err = (t, u)->lorenz63(t, u, Dict("σ" => 10.1, "β" => 8/3, "ρ" => 28.1))
 
-lorenz63_err2 = (t, u)->lorenz63(t, u, Dict("σ" => 9.9, "β" => 8/3 - 0.1,
-                                            "ρ" => 28))
+lorenz63_err2 = (t, u)->lorenz63(t, u, Dict("σ" => 9.9, "β" => 8/3,
+                                            "ρ" => 27.9))
 
 end

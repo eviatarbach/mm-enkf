@@ -4,7 +4,7 @@ include("etkf.jl")
 
 import .ETKF
 
-export init_ens, mmda
+export model_err, init_ens, mmda
 
 using Statistics
 using LinearAlgebra
@@ -25,12 +25,31 @@ end
 xskillscore = pyimport("xskillscore")
 xarray = pyimport("xarray")
 
+function model_err(; model_true::Function, model_err::Function,
+                     integrator::Function, x0::AbstractVector{float_type},
+                     t0::float_type, outfreq::Integer, Δt::float_type,
+                     window::Integer, n_samples::Integer) where {float_type<:AbstractFloat}
+    D = length(x0)
+
+    errs = Array{float_type}(undef, n_samples, D)
+
+    t = t0
+    x = x0
+    for i=1:n_samples
+        x_true = integrator(model_true, x, t, t + window*outfreq*Δt, Δt)
+        x_err = integrator(model_err, x, t, t + window*outfreq*Δt, Δt)
+        errs[i, :] = x_err - x_true
+        t += window*outfreq*Δt
+        x = x_true
+    end
+    return cov(errs)
+end
+
 function init_ens(; model::Function, integrator::Function,
                     x0::AbstractVector{float_type}, t0::float_type,
-                    outfreq::int_type, Δt::float_type, ens_size::int_type,
-                    transient::Real=0) where {float_type<:AbstractFloat,
-                                              int_type<:Integer}
-    x0 = integrator(model, x0, 0., transient*outfreq*Δt, Δt)
+                    outfreq::int_type, Δt::float_type,
+                    ens_size::int_type) where {float_type<:AbstractFloat,
+                                               int_type<:Integer}
     E = copy(integrator(model, x0, t0, ens_size*Δt*outfreq, Δt,
                         inplace=false)[1:outfreq:end, :]')
     return E
@@ -79,6 +98,7 @@ function mmda(; x0::AbstractVector{float_type},
             # Posterior ensemble of the previous model is used as the prior
             # ensemble for the next model
             E = ensembles[model-1]
+            #E += rand(MvNormal(model_errs[model-1]), ens_sizes[model-1])
 
             E_model = ensembles[model]
 
@@ -88,8 +108,8 @@ function mmda(; x0::AbstractVector{float_type},
 
             x_m = mean(E, dims=2)
 
-            X = (E .- x_m)/sqrt(m - 1)
-            P_f = X*X'
+            X = (E_model .- x_m)/sqrt(m - 1)
+            P_f = X*X' + model_errs[model-1]
             P_f_inv = inv(P_f)
 
             if model_errs[model] !== nothing
@@ -105,8 +125,10 @@ function mmda(; x0::AbstractVector{float_type},
 
             # Assimilate the forecast of each ensemble member of the current
             # model as if it were an observation
+            E += rand(MvNormal(model_errs[model-1]), ens_sizes[model-1])
+            #E = ETKF.etkf(E=E, R_inv=P_f_inv, H=H_model, y=mean(E_model, dims=2)[:, 1], Q=nothing)
             for i=1:m
-                E = ETKF.etkf(E=E, R_inv=P_f_inv, H=H_model, y=E_model[:, i], Q=Q)
+                E = ETKF.etkf(E=E, R_inv=P_f_inv/m, H=H_model, y=E_model[:, i], Q=nothing)
             end
 
             ensembles[model] = E
@@ -130,6 +152,11 @@ function mmda(; x0::AbstractVector{float_type},
                                          t + window*outfreq*Δt, Δt, inplace=false)
                 E[:, i] = integration[end, :]
             end
+
+            #if model_errs[model] !== nothing
+            #    E += rand(MvNormal(model_errs[model]), ens_sizes[model])
+            #end
+
             ensembles[model] = E
         end
 
