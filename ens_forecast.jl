@@ -42,7 +42,7 @@ function model_err(; model_true::Function, model_err::Function,
         t += window*outfreq*Δt
         x = x_true
     end
-    return cov(errs)
+    return cov(errs), mean(errs, dims=1)
 end
 
 function init_ens(; model::Function, integrator::Function,
@@ -63,7 +63,7 @@ function mmda(; x0::AbstractVector{float_type},
                 integrator::Function, ens_sizes::AbstractVector{int_type},
                 Δt::float_type, window::int_type, n_cycles::int_type,
                 outfreq::int_type, model_sizes::AbstractVector{int_type},
-                R::AbstractMatrix{float_type}, ρ::float_type) where {float_type<:AbstractFloat, int_type<:Integer}
+                R::AbstractMatrix{float_type}, ρ::float_type, inflation::float_type) where {float_type<:AbstractFloat, int_type<:Integer}
     n_models = length(models)
     obs_err_dist = MvNormal(R)
     R_inv = inv(R)
@@ -109,33 +109,34 @@ function mmda(; x0::AbstractVector{float_type},
             x_m = mean(E, dims=2)
 
             X = (E_model .- x_m)/sqrt(m - 1)
-            P_f = X*X' + model_errs[model-1]
+            P_f = X*X'# + model_errs[model]
+            #P_f = diagm(0=>diag(P_f))
             P_f_inv = inv(P_f)
 
-            if model_errs[model] !== nothing
-                # Estimate model error covariance based on innovations
-                d = y - H_model_prime*x_m
-                Q_est = inv(H_model_prime)*(d*d' - R - H_model_prime*P_f*H_model_prime')*inv(H_model_prime)'
+            # if model_errs[model] !== nothing
+            #     # Estimate model error covariance based on innovations
+            #     d = y - H_model_prime*x_m
+            #     Q_est = inv(H_model_prime)*(d*d' - R - H_model_prime*P_f*H_model_prime')*inv(H_model_prime)'
 
-                # Time filtering
-                Q = ρ*Q_est + (1 - ρ)*model_errs[model]
-            else
-                Q = nothing
-            end
+            #     # Time filtering
+            #     Q = ρ*Q_est + (1 - ρ)*model_errs[model-1]
+            # else
+            #     Q = nothing
+            # end
 
             # Assimilate the forecast of each ensemble member of the current
             # model as if it were an observation
-            E += rand(MvNormal(model_errs[model-1]), ens_sizes[model-1])
-            #E = ETKF.etkf(E=E, R_inv=P_f_inv, H=H_model, y=mean(E_model, dims=2)[:, 1], Q=nothing)
-            for i=1:m
-                E = ETKF.etkf(E=E, R_inv=P_f_inv/m, H=H_model, y=E_model[:, i], Q=nothing)
-            end
+            #E += rand(MvNormal(Q), ens_sizes[model-1])
+            E = ETKF.etkf(E=E, R_inv=P_f_inv, H=H_model, y=mean(E_model, dims=2)[:, 1], Q=nothing, inflation=inflation)
+            #for i=1:m
+            #    E = ETKF.etkf(E=E, R_inv=P_f_inv/m, H=H_model, y=E_model[:, i], Q=nothing)
+            #end
 
             ensembles[model] = E
         end
 
         # Assimilate observations
-        E_a = ETKF.etkf(E=ensembles[n_models], R_inv=R_inv, H=H, y=y)
+        E_a = ETKF.etkf(E=ensembles[n_models], R_inv=R_inv, H=H, y=y, inflation=inflation)
 
         for model=1:n_models
             # Map from reference model space to the current model space
@@ -153,9 +154,9 @@ function mmda(; x0::AbstractVector{float_type},
                 E[:, i] = integration[end, :]
             end
 
-            #if model_errs[model] !== nothing
-            #    E += rand(MvNormal(model_errs[model]), ens_sizes[model])
-            #end
+            if model_errs[model] !== nothing
+                E += rand(MvNormal(model_errs[model]), ens_sizes[model])
+            end
 
             ensembles[model] = E
         end
@@ -165,7 +166,7 @@ function mmda(; x0::AbstractVector{float_type},
         t += window*outfreq*Δt
     end
 
-    return Forecast_Info(errs, errs_uncorr, crps, crps_uncorr, spread)
+    return Forecast_Info(errs, errs_uncorr, crps, crps_uncorr, spread), ensembles, x_true
 end
 
 end
