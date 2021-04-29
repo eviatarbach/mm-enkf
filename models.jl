@@ -71,12 +71,39 @@ end
 
 lorenz63_true = (t, u)->lorenz63(t, u, Dict("σ" => 10, "β" => 8/3, "ρ" => 28))
 
-lorenz63_err = (t, u)->lorenz63(t, u, Dict("σ" => 11, "β" => 8/3, "ρ" => 28))
+lorenz63_err = (t, u)->lorenz63(t, u, Dict("σ" => 11, "β" => 8/3 - 0.1, "ρ" => 28))
 
-lorenz63_err2 = (t, u)->lorenz63(t, u, Dict("σ" => 10, "β" => 8/3,
+lorenz63_err2 = (t, u)->lorenz63(t, u, Dict("σ" => 10 - 0.3, "β" => 8/3,
                                             "ρ" => 28.1))
 
 
 lorenz63_err3 = (t, u)->lorenz63(t, u, Dict("σ" => 10.00001, "β" => 8/3, "ρ" => 28))
+
+function lorenz96(t, u, p)
+   N = 5
+
+   # compute state derivatives
+   du = zeros(N)
+
+   # first the 3 edge cases: i=1,2,N
+   du[1] = (u[2] - u[N-1])*u[N] - u[1]
+   du[2] = (u[3] - u[N])*u[1] - u[2]
+   du[N] = (u[1] - u[N-2])*u[N-1] - u[N]
+
+   # then the general case
+   for i=3:N-1
+       du[i] = (u[i+1] - u[i-2])*u[i-1] - u[i]
+    end
+
+   du .+= p["F"]
+
+   return du
+end
+
+lorenz96_true = (t, u)->lorenz96(t, u, Dict("F" => 8))
+lorenz96_err = (t, u)->lorenz96(t, u, Dict("F" => 6))
+lorenz96_err2 = (t, u)->lorenz96(t, u, Dict("F" => 7))
+lorenz96_err3 = (t, u)->lorenz96(t, u, Dict("F" => 9))
+lorenz96_err4 = (t, u)->lorenz96(t, u, Dict("F" => 10))
 
 end

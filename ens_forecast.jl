@@ -70,6 +70,7 @@ function mmda(; x0::AbstractVector{float_type},
 
     x_true = x0
 
+    ensembles_a = similar(ensembles)
     errs = Array{float_type}(undef, n_models, n_cycles)
     errs_uncorr = Array{float_type}(undef, n_models, n_cycles)
     crps = Array{float_type}(undef, n_models, n_cycles)
@@ -93,6 +94,11 @@ function mmda(; x0::AbstractVector{float_type},
 
         y = H*x_true + rand(obs_err_dist)
 
+        for model=1:n_models
+            # Assimilate observations
+            ensembles_a[model] = ETKF.etkf(E=ensembles[model], R_inv=R_inv, H=H, y=y, inflation=inflation)
+        end
+
         # Iterative multi-model data assimilation
         for model=2:n_models
             # Posterior ensemble of the previous model is used as the prior
@@ -110,7 +116,7 @@ function mmda(; x0::AbstractVector{float_type},
 
             X = (E_model .- x_m)/sqrt(m - 1)
             P_f = X*X'# + model_errs[model]
-            #P_f = diagm(0=>diag(P_f))
+            P_f = diagm(0=>diag(P_f))
             P_f_inv = inv(P_f)
 
             # if model_errs[model] !== nothing
@@ -135,7 +141,6 @@ function mmda(; x0::AbstractVector{float_type},
             ensembles[model] = E
         end
 
-        # Assimilate observations
         E_a = ETKF.etkf(E=ensembles[n_models], R_inv=R_inv, H=H, y=y, inflation=inflation)
 
         for model=1:n_models
@@ -148,6 +153,7 @@ function mmda(; x0::AbstractVector{float_type},
             crps[model, cycle] = xskillscore.crps_ensemble(x_true, E_corr_array).values[1]
             spread[model, cycle] = mean(std(E, dims=2))
 
+            E = ensembles_a[model]
             for i=1:ens_sizes[model]
                 integration = integrator(models[model], E[:, i], t,
                                          t + window*outfreq*Δt, Δt, inplace=false)

@@ -18,36 +18,37 @@ import .Integrators
 
 Random.seed!(1)
 
-models = [Models.lorenz63_err2]
-model_true = Models.lorenz63_true
+models = [Models.lorenz96_err2, Models.lorenz96_err3]
+model_true = Models.lorenz96_true
 n_models = length(models)
-D = 3
-obs_ops = [I(D), I(D), I(D)]
+D = 5
+obs_ops = [I(D), I(D), I(D), I(D)]
 H = I(D)
-ens_sizes = [20, 20, 20]
-model_sizes = [D, D, D]
+ens_sizes = [20, 20, 20, 20]
+model_sizes = [D, D, D, D]
 integrator = Integrators.rk4
-x0 = rand(D)
+x0 = randn(D)
 t0 = 0.0
-Δt = 0.05
+Δt = 0.01
 outfreq = 1
-window = 5
+window = 20
 transient = 2000
 x0 = integrator(models[1], x0, t0, transient*outfreq*Δt, Δt, inplace=false)
-R = diagm(0=>(0.1*std(x0, dims=1)[:]).^2)
+R = diagm(0=>0.1*ones(D))
 x0 = x0[end, :]
 #ensembles = [ens_forecast.init_ens(model=models[model], integrator=integrator,
 #                                   x0=x0, t0=t0, outfreq=outfreq, Δt=Δt,
 #                                   ens_size=ens_sizes[model]) for model=1:n_models]
 #x0 = ensembles[1][:, end]
-n_cycles = 100
-spinup = 50
+n_cycles = 500
+#spinup = 14600
+spinup = 100
 ρ = 0.0
 
 model_errs = [ens_forecast.model_err(model_true=model_true, model_err=models[model],
                                      integrator=integrator, x0=x0, t0=t0,
                                      outfreq=outfreq, Δt=Δt, window=window,
-                                     n_samples=100)[1] for model=1:n_models]
+                                     n_samples=400)[1] for model=1:n_models]
 
 ensembles = [x0 .+ rand(MvNormal(R), ens_sizes[model]) for model=1:n_models]
 
@@ -62,7 +63,7 @@ _, ensembles, x0 = ens_forecast.mmda(x0=x0, ensembles=ensembles, models=models,
                          n_cycles=spinup, outfreq=outfreq,
                          model_sizes=model_sizes, R=R, ρ=ρ, inflation=inflation)
 
-info, _, _ = ens_forecast.mmda(x0=x0, ensembles=ensembles, models=models,
+info, ensembles, _ = ens_forecast.mmda(x0=x0, ensembles=ensembles, models=models,
                          model_true=model_true, obs_ops=obs_ops, H=H,
                          model_errs=model_errs, integrator=integrator,
                          ens_sizes=ens_sizes, Δt=Δt, window=window,
