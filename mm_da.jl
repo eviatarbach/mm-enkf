@@ -18,7 +18,7 @@ import .Integrators
 
 Random.seed!(1)
 
-models = [Models.lorenz63_err2]
+models = [Models.lorenz63_err, Models.lorenz63_err4]
 model_true = Models.lorenz63_true
 n_models = length(models)
 D = 3
@@ -53,7 +53,7 @@ ensembles = [x0 .+ rand(MvNormal(R), ens_sizes[model]) for model=1:n_models]
 
 #model_errs = [nothing, nothing]
 
-inflation = 1.05
+inflation = 1.1
 
 _, ensembles, x0 = ens_forecast.mmda(x0=x0, ensembles=ensembles, models=models,
                          model_true=model_true, obs_ops=obs_ops, H=H,

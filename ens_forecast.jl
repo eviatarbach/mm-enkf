@@ -112,12 +112,18 @@ function mmda(; x0::AbstractVector{float_type},
             H_model = obs_ops[model]
             H_model_prime = H*inv(H_model)
 
-            x_m = mean(E, dims=2)
+            x_m = mean(E_model, dims=2)
 
             X = (E_model .- x_m)/sqrt(m - 1)
             P_f = X*X'# + model_errs[model]
-            P_f = diagm(0=>diag(P_f))
-            P_f_inv = inv(P_f)
+            P_f_diag = diagm(0=>diag(P_f))
+            P_f_inv = inv(P_f_diag)
+
+            #d = y - H_model_prime*x_m
+            #λ_est = (d'*d - tr(R))/tr(H_model_prime*P_f*H_model_prime')
+
+            # Time filtering
+            # λ = ρ*λ_est + (1 - ρ)*inflations[model]
 
             # if model_errs[model] !== nothing
             #     # Estimate model error covariance based on innovations
@@ -142,6 +148,7 @@ function mmda(; x0::AbstractVector{float_type},
         end
 
         E_a = ETKF.etkf(E=ensembles[n_models], R_inv=R_inv, H=H, y=y, inflation=inflation)
+        #E_a = ensembles[n_models]
 
         for model=1:n_models
             # Map from reference model space to the current model space
@@ -153,7 +160,7 @@ function mmda(; x0::AbstractVector{float_type},
             crps[model, cycle] = xskillscore.crps_ensemble(x_true, E_corr_array).values[1]
             spread[model, cycle] = mean(std(E, dims=2))
 
-            E = ensembles_a[model]
+            #E = ensembles_a[model]
             for i=1:ens_sizes[model]
                 integration = integrator(models[model], E[:, i], t,
                                          t + window*outfreq*Δt, Δt, inplace=false)

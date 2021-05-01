@@ -79,8 +79,10 @@ lorenz63_err2 = (t, u)->lorenz63(t, u, Dict("σ" => 10 - 0.3, "β" => 8/3,
 
 lorenz63_err3 = (t, u)->lorenz63(t, u, Dict("σ" => 10.00001, "β" => 8/3, "ρ" => 28))
 
+lorenz63_err4 = (t, u)->lorenz63(t, u, Dict("σ" => 10, "β" => (1 + 0.1)*(8/3), "ρ" => 28))
+
 function lorenz96(t, u, p)
-   N = 5
+   N = 13
 
    # compute state derivatives
    du = zeros(N)
