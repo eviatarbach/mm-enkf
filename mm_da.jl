@@ -31,7 +31,7 @@ x0 = rand(D)
 t0 = 0.0
 Δt = 0.05
 outfreq = 1
-window = 5
+window = 1
 transient = 2000
 x0 = integrator(models[1], x0, t0, transient*outfreq*Δt, Δt, inplace=false)
 R = diagm(0=>(0.1*std(x0, dims=1)[:]).^2)
@@ -40,31 +40,55 @@ x0 = x0[end, :]
 #                                   x0=x0, t0=t0, outfreq=outfreq, Δt=Δt,
 #                                   ens_size=ens_sizes[model]) for model=1:n_models]
 #x0 = ensembles[1][:, end]
-n_cycles = 100
-spinup = 50
+n_cycles = 500
+spinup = 250
 ρ = 0.0
 
-model_errs = [ens_forecast.model_err(model_true=model_true, model_err=models[model],
-                                     integrator=integrator, x0=x0, t0=t0,
-                                     outfreq=outfreq, Δt=Δt, window=window,
-                                     n_samples=100)[1] for model=1:n_models]
+#model_errs = [ens_forecast.model_err(model_true=model_true, model_err=models[model],
+#                                     integrator=integrator, x0=x0, t0=t0,
+#                                     outfreq=outfreq, Δt=Δt, window=window,
+#                                     n_samples=100)[1] for model=1:n_models]
 
 ensembles = [x0 .+ rand(MvNormal(R), ens_sizes[model]) for model=1:n_models]
 
-#model_errs = [nothing, nothing]
+model_errs = [nothing, nothing]
+biases = [nothing, nothing]
 
-inflation = 1.1
+α = 2.0
+inflations = [1.1]
 
-_, ensembles, x0 = ens_forecast.mmda(x0=x0, ensembles=ensembles, models=models,
+info1, ensembles, x0 = ens_forecast.mmda(x0=x0, ensembles=ensembles, models=[models[1]],
                          model_true=model_true, obs_ops=obs_ops, H=H,
-                         model_errs=model_errs, integrator=integrator,
+                         model_errs=model_errs, biases=biases, integrator=integrator,
                          ens_sizes=ens_sizes, Δt=Δt, window=window,
                          n_cycles=spinup, outfreq=outfreq,
-                         model_sizes=model_sizes, R=R, ρ=ρ, inflation=inflation)
+                         model_sizes=model_sizes, R=R, ρ=ρ, inflations=inflations,
+                         α=α)
+
+ensembles = [x0 .+ rand(MvNormal(R), ens_sizes[model]) for model=1:n_models]
+inflations = [1.2]
+
+info2, ensembles, x0 = ens_forecast.mmda(x0=x0, ensembles=ensembles, models=[models[2]],
+                        model_true=model_true, obs_ops=obs_ops, H=H,
+                        model_errs=model_errs, biases=biases, integrator=integrator,
+                        ens_sizes=ens_sizes, Δt=Δt, window=window,
+                        n_cycles=spinup, outfreq=outfreq,
+                        model_sizes=model_sizes, R=R, ρ=ρ, inflations=inflations,
+                        α=α)
+
+incs1 = hcat(info1.increments...)
+incs2 = hcat(info2.increments...)
+model_errs = [cov(incs1'), cov(incs2')]
+biases = [mean(incs1, dims=2)[:], mean(incs2, dims=2)[:]]
+#biases = [zeros(3), zeros(3)]
+
+inflations = [1.0, 1.0]
+ensembles = [x0 .+ rand(MvNormal(R), ens_sizes[model]) for model=1:n_models]
 
 info, _, _ = ens_forecast.mmda(x0=x0, ensembles=ensembles, models=models,
                          model_true=model_true, obs_ops=obs_ops, H=H,
-                         model_errs=model_errs, integrator=integrator,
+                         model_errs=model_errs, biases=biases, integrator=integrator,
                          ens_sizes=ens_sizes, Δt=Δt, window=window,
                          n_cycles=n_cycles, outfreq=outfreq,
-                         model_sizes=model_sizes, R=R, ρ=ρ, inflation=inflation)
+                         model_sizes=model_sizes, R=R, ρ=ρ, inflations=inflations,
+                         α=α)

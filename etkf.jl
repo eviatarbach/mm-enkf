@@ -11,18 +11,13 @@ Ensemble transform Kalman filter (ETKF)
 """
 function etkf(; E::AbstractMatrix{float_type}, R_inv::AbstractMatrix{float_type},
                 inflation::float_type=1.0, H::AbstractMatrix,
-                y::AbstractVector{float_type},
-                Q::Union{AbstractMatrix{float_type}, Nothing}=nothing) where {float_type<:AbstractFloat}
+                y::AbstractVector{float_type}) where {float_type<:AbstractFloat}
     D, m = size(E)
-
-    if Q !== nothing
-        E += rand(MvNormal(Q), m)
-    end
 
     x_m = mean(E, dims=2)
     X = (E .- x_m)/sqrt(m - 1)
 
-    X = inflation*X
+    X = sqrt(inflation)*X
 
     y_m = H*x_m
     Y = (hcat([H*E[:, i] for i=1:m]...) .- y_m)/sqrt(m - 1)

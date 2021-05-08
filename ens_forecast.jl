@@ -20,6 +20,7 @@ struct Forecast_Info
     crps
     crps_uncorr
     spread
+    increments
 end
 
 xskillscore = pyimport("xskillscore")
@@ -60,10 +61,12 @@ function mmda(; x0::AbstractVector{float_type},
                 models::AbstractVector{<:Function}, model_true::Function,
                 obs_ops::AbstractVector{<:AbstractMatrix}, H::AbstractMatrix,
                 model_errs::AbstractVector{<:Union{AbstractMatrix{float_type}, Nothing}},
+                biases::AbstractVector{<:Union{AbstractVector{float_type}, Nothing}},
                 integrator::Function, ens_sizes::AbstractVector{int_type},
                 Δt::float_type, window::int_type, n_cycles::int_type,
                 outfreq::int_type, model_sizes::AbstractVector{int_type},
-                R::AbstractMatrix{float_type}, ρ::float_type, inflation::float_type) where {float_type<:AbstractFloat, int_type<:Integer}
+                R::AbstractMatrix{float_type}, ρ::float_type, inflations::AbstractVector{float_type},
+                α::float_type) where {float_type<:AbstractFloat, int_type<:Integer}
     n_models = length(models)
     obs_err_dist = MvNormal(R)
     R_inv = inv(R)
@@ -75,6 +78,7 @@ function mmda(; x0::AbstractVector{float_type},
     errs_uncorr = Array{float_type}(undef, n_models, n_cycles)
     crps = Array{float_type}(undef, n_models, n_cycles)
     crps_uncorr = Array{float_type}(undef, n_models, n_cycles)
+    increments = Array{Vector{float_type}}(undef, n_models, n_cycles)
     spread = Array{float_type}(undef, n_models, n_cycles)
 
     t = 0.0
@@ -95,8 +99,10 @@ function mmda(; x0::AbstractVector{float_type},
         y = H*x_true + rand(obs_err_dist)
 
         for model=1:n_models
+            x_f = mean(ensembles[model], dims=2)
             # Assimilate observations
-            ensembles_a[model] = ETKF.etkf(E=ensembles[model], R_inv=R_inv, H=H, y=y, inflation=inflation)
+            ensembles_a[model] = ETKF.etkf(E=ensembles[model], R_inv=R_inv, H=H, y=y, inflation=inflations[model])
+            increments[model, cycle] = (x_f - mean(ensembles_a[model], dims=2))[:]
         end
 
         # Iterative multi-model data assimilation
@@ -139,7 +145,7 @@ function mmda(; x0::AbstractVector{float_type},
             # Assimilate the forecast of each ensemble member of the current
             # model as if it were an observation
             #E += rand(MvNormal(Q), ens_sizes[model-1])
-            E = ETKF.etkf(E=E, R_inv=P_f_inv, H=H_model, y=mean(E_model, dims=2)[:, 1], Q=nothing, inflation=inflation)
+            E = ETKF.etkf(E=E, R_inv=P_f_inv, H=H_model, y=mean(E_model, dims=2)[:, 1])
             #for i=1:m
             #    E = ETKF.etkf(E=E, R_inv=P_f_inv/m, H=H_model, y=E_model[:, i], Q=nothing)
             #end
@@ -147,7 +153,12 @@ function mmda(; x0::AbstractVector{float_type},
             ensembles[model] = E
         end
 
-        E_a = ETKF.etkf(E=ensembles[n_models], R_inv=R_inv, H=H, y=y, inflation=inflation)
+        if n_models > 1
+            E_a = ETKF.etkf(E=ensembles[n_models], R_inv=R_inv, H=H, y=y)
+        else
+            E_a = ETKF.etkf(E=ensembles[n_models], R_inv=R_inv, H=H, y=y,
+                            inflation=inflations[1])
+        end
         #E_a = ensembles[n_models]
 
         for model=1:n_models
@@ -167,8 +178,17 @@ function mmda(; x0::AbstractVector{float_type},
                 E[:, i] = integration[end, :]
             end
 
+            #if model_errs[model] !== nothing
+            #    Q_sample = rand(MvNormal(model_errs[model]), ens_sizes[model])
+            #    Q_sample .-= mean(Q_sample, dims=2)
+            #    Q_sample *= sqrt(ens_sizes[model]/(ens_sizes[model] - 1))
+            #    E += Q_sample
+            #end
+
+            #E = x_m .+ sqrt(inflations[model])*(E .- x_m)
+
             if model_errs[model] !== nothing
-                E += rand(MvNormal(model_errs[model]), ens_sizes[model])
+                E -= α*rand(MvNormal(biases[model], model_errs[model]), ens_sizes[model])
             end
 
             ensembles[model] = E
@@ -179,7 +199,7 @@ function mmda(; x0::AbstractVector{float_type},
         t += window*outfreq*Δt
     end
 
-    return Forecast_Info(errs, errs_uncorr, crps, crps_uncorr, spread), ensembles, x_true
+    return Forecast_Info(errs, errs_uncorr, crps, crps_uncorr, spread, increments), ensembles, x_true
 end
 
 end

@@ -1,5 +1,22 @@
 module Models
 
+using Zygote
+
+struct System
+   func
+   jac
+   params
+end
+
+function System(func_generic, params)
+   func = (t, u)->func_generic(t, u, params)
+   jac = (t, u)->jacobian(func_generic, t, u, params)[2]
+   return System(func, jac, params)
+end
+
+zygote = true
+sim_func = zygote ? Zygote.Buffer : similar
+
 function colpitts(t, u, p)
    M = 2
 
@@ -48,64 +65,58 @@ chua_err = (t, u)->chua(t, u, Dict("α" => 15.7, "β" => 24.58, "m_1" => -5/7,
                                     "m_0" => -8/7))
 
 function lorenz63(t, u, p)
-   x, y, z = u
-
-   du = zeros(3)
+   du = sim_func(u)
    du[1] = p["σ"]*(u[2]-u[1])
    du[2] = u[1]*(p["ρ"]-u[3]) - u[2]
    du[3] = u[1]*u[2] - p["β"]*u[3]
 
-   return du
+   return copy(du)
 end
 
-function lorenz63_stochastic(t, u, p)
-   x, y, z = u
+# function lorenz63_stochastic(t, u, p)
+#    x, y, z = u
 
-   du = zeros(3)
-   du[1] = p["σ"]*(u[2]-u[1])
-   du[2] = u[1]*(p["ρ"]-u[3]) - u[2]
-   du[3] = u[1]*u[2] - p["β"]*u[3]
+#    du = zeros(3)
+#    du[1] = p["σ"]*(u[2]-u[1])
+#    du[2] = u[1]*(p["ρ"]-u[3]) - u[2]
+#    du[3] = u[1]*u[2] - p["β"]*u[3]
 
-   return du + p["r"]*randn(3)
-end
+#    return du + p["r"]*randn(3)
+# end
 
-lorenz63_true = (t, u)->lorenz63(t, u, Dict("σ" => 10, "β" => 8/3, "ρ" => 28))
+lorenz63_true = System(lorenz63, Dict("σ" => 10, "β" => 8/3, "ρ" => 28))
 
-lorenz63_err = (t, u)->lorenz63(t, u, Dict("σ" => 11, "β" => 8/3 - 0.1, "ρ" => 28))
-
-lorenz63_err2 = (t, u)->lorenz63(t, u, Dict("σ" => 10 - 0.3, "β" => 8/3,
-                                            "ρ" => 28.1))
-
-
-lorenz63_err3 = (t, u)->lorenz63(t, u, Dict("σ" => 10.00001, "β" => 8/3, "ρ" => 28))
-
-lorenz63_err4 = (t, u)->lorenz63(t, u, Dict("σ" => 10, "β" => (1 + 0.1)*(8/3), "ρ" => 28))
+lorenz63_err = System(lorenz63, Dict("σ" => 11, "β" => 8/3 - 0.1, "ρ" => 28))
+lorenz63_err2 = System(lorenz63, Dict("σ" => 10 - 0.3, "β" => 8/3, "ρ" => 28.1))
+lorenz63_err3 = System(lorenz63, Dict("σ" => 10.00001, "β" => 8/3, "ρ" => 28))
+lorenz63_err4 = System(lorenz63, Dict("σ" => 10, "β" => (1 + 0.1)*(8/3), "ρ" => 28))
 
 function lorenz96(t, u, p)
    N = 13
 
    # compute state derivatives
-   du = zeros(N)
+   du = sim_func(u)
 
    # first the 3 edge cases: i=1,2,N
-   du[1] = (u[2] - u[N-1])*u[N] - u[1]
-   du[2] = (u[3] - u[N])*u[1] - u[2]
-   du[N] = (u[1] - u[N-2])*u[N-1] - u[N]
+   du[1] = (u[2] - u[N-1])*u[N] - u[1] + p["F"]
+   du[2] = (u[3] - u[N])*u[1] - u[2] + p["F"]
+   du[N] = (u[1] - u[N-2])*u[N-1] - u[N] + p["F"]
 
    # then the general case
    for i=3:N-1
-       du[i] = (u[i+1] - u[i-2])*u[i-1] - u[i]
-    end
+       du[i] = (u[i+1] - u[i-2])*u[i-1] - u[i] + p["F"]
+   end
 
-   du .+= p["F"]
+   #du = du .+ p["F"]
 
-   return du
+   return copy(du)
 end
 
-lorenz96_true = (t, u)->lorenz96(t, u, Dict("F" => 8))
-lorenz96_err = (t, u)->lorenz96(t, u, Dict("F" => 6))
-lorenz96_err2 = (t, u)->lorenz96(t, u, Dict("F" => 7))
-lorenz96_err3 = (t, u)->lorenz96(t, u, Dict("F" => 9))
-lorenz96_err4 = (t, u)->lorenz96(t, u, Dict("F" => 10))
+lorenz96_true = System(lorenz96, Dict("F" => 8))
+
+lorenz96_err = System(lorenz96, Dict("F" => 6))
+lorenz96_err2 = System(lorenz96, Dict("F" => 7))
+lorenz96_err3 = System(lorenz96, Dict("F" => 9))
+lorenz96_err4 = System(lorenz96, Dict("F" => 10))
 
 end
