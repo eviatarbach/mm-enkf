@@ -18,8 +18,8 @@ import .Integrators
 
 Random.seed!(1)
 
-models = [Models.lorenz96_err2, Models.lorenz96_err3]
-model_true = Models.lorenz96_true
+models = [Models.lorenz96_err2.func, Models.lorenz96_err3.func]
+model_true = Models.lorenz96_true.func
 n_models = length(models)
 D = 13
 obs_ops = [I(D), I(D), I(D), I(D)]
@@ -43,7 +43,7 @@ x0 = x0[end, :]
 n_cycles = 500
 #spinup = 14600
 spinup = 100
-ρ = 0.0
+ρ = 0.5
 
 model_errs = [ens_forecast.model_err(model_true=model_true, model_err=models[model],
                                      integrator=integrator, x0=x0, t0=t0,
@@ -52,12 +52,12 @@ model_errs = [ens_forecast.model_err(model_true=model_true, model_err=models[mod
 
 ensembles = [x0 .+ rand(MvNormal(R), ens_sizes[model]) for model=1:n_models]
 
-model_errs = [nothing, nothing]
-biases = [nothing, nothing]
+model_errs = Vector{Matrix{Float64}}(undef, n_models)#[nothing, nothing]
+biases = [zeros(13), zeros(13)]#[nothing, nothing]
 
-α = 3.0
+α = 1.0
 
-inflations = [1.1]
+inflations = [1.0]
 
 info1, ensembles, x0 = ens_forecast.mmda(x0=x0, ensembles=ensembles, models=[models[1]],
                          model_true=model_true, obs_ops=obs_ops, H=H,
@@ -67,7 +67,7 @@ info1, ensembles, x0 = ens_forecast.mmda(x0=x0, ensembles=ensembles, models=[mod
                          model_sizes=model_sizes, R=R, ρ=ρ, inflations=inflations,
                          α=α)
 
-inflations = [1.1]
+inflations = [1.0]
 ensembles = [x0 .+ rand(MvNormal(R), ens_sizes[model]) for model=1:n_models]
 
 info2, ensembles, x0 = ens_forecast.mmda(x0=x0, ensembles=ensembles, models=[models[2]],
@@ -80,8 +80,8 @@ info2, ensembles, x0 = ens_forecast.mmda(x0=x0, ensembles=ensembles, models=[mod
 
 incs1 = hcat(info1.increments...)
 incs2 = hcat(info2.increments...)
-model_errs = [cov(incs1'), cov(incs2')]
-biases = [mean(incs1, dims=2)[:], mean(incs2, dims=2)[:]]
+#model_errs = [cov(incs1'), cov(incs2')]
+#biases = [mean(incs1, dims=2)[:], mean(incs2, dims=2)[:]]
 
 inflations = [1.0, 1.0]
 ensembles = [x0 .+ rand(MvNormal(R), ens_sizes[model]) for model=1:n_models]

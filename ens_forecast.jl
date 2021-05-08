@@ -43,7 +43,7 @@ function model_err(; model_true::Function, model_err::Function,
         t += window*outfreq*Δt
         x = x_true
     end
-    return cov(errs), mean(errs, dims=1)
+    return errs'*errs/(n_samples - 1), mean(errs, dims=1)
 end
 
 function init_ens(; model::Function, integrator::Function,
@@ -79,6 +79,8 @@ function mmda(; x0::AbstractVector{float_type},
     crps = Array{float_type}(undef, n_models, n_cycles)
     crps_uncorr = Array{float_type}(undef, n_models, n_cycles)
     increments = Array{Vector{float_type}}(undef, n_models, n_cycles)
+    innovations = Array{Vector{float_type}}(undef, n_models)
+    propagators = Array{Matrix{float_type}}(undef, n_models)
     spread = Array{float_type}(undef, n_models, n_cycles)
 
     t = 0.0
@@ -103,6 +105,49 @@ function mmda(; x0::AbstractVector{float_type},
             # Assimilate observations
             ensembles_a[model] = ETKF.etkf(E=ensembles[model], R_inv=R_inv, H=H, y=y, inflation=inflations[model])
             increments[model, cycle] = (x_f - mean(ensembles_a[model], dims=2))[:]
+        end
+
+        for model=1:n_models
+            E = ensembles[model]
+            m = ens_sizes[model]
+
+            P_true = (E .- x_true)*(E .- x_true)'/(m - 1)
+
+            x_m = mean(E, dims=2)
+            X = (E .- x_m)/sqrt(m - 1)
+            P_f = X*X'
+
+            Q_est = P_true - P_f
+            #println(minimum(eigvals(Q_est + 1e-6*I)))
+
+            if cycle == 1
+                Q = Q_est
+            else
+                Q = ρ*Q_est + (1 - ρ)*model_errs[model]
+            end
+
+            model_errs[model] = Q + 0.0001*I
+
+            # H_model = obs_ops[model]
+            # H_model_prime = H*inv(H_model)
+
+            # x_m = mean(E_model, dims=2)
+
+            # if cycle > 1
+            #     propagator = propagators[model]
+
+            #     X = (E_model .- x_m)/sqrt(m - 1)
+            #     P_f = X*X'
+
+            #     d_old = innovations[model]
+            #     d = y - H_model_prime*x_m
+            #     innovations[model] = d
+
+            #     println((eigvals(P_f)))
+            # else
+            #     innovations[model] = y - H_model_prime*x_m
+            # end
+            #println(tr(d*d') - tr(R + H_model_prime*P_f*H_model_prime'))
         end
 
         # Iterative multi-model data assimilation
@@ -131,16 +176,17 @@ function mmda(; x0::AbstractVector{float_type},
             # Time filtering
             # λ = ρ*λ_est + (1 - ρ)*inflations[model]
 
-            # if model_errs[model] !== nothing
-            #     # Estimate model error covariance based on innovations
-            #     d = y - H_model_prime*x_m
-            #     Q_est = inv(H_model_prime)*(d*d' - R - H_model_prime*P_f*H_model_prime')*inv(H_model_prime)'
+            #  if model_errs[model] !== nothing
+            # #     # Estimate model error covariance based on innovations
+            #      d = y - H_model_prime*x_m
+            #      Q_est = inv(H_model_prime)*(d*d' - R - H_model_prime*P_f*H_model_prime')*inv(H_model_prime)'
 
-            #     # Time filtering
-            #     Q = ρ*Q_est + (1 - ρ)*model_errs[model-1]
-            # else
-            #     Q = nothing
-            # end
+            #      # Time filtering
+            #      Q = ρ*Q_est + (1 - ρ)*model_errs[model-1]
+            #      #println(minimum(eigvals(Q_est)))
+            #  else
+            #      Q = nothing
+            #  end
 
             # Assimilate the forecast of each ensemble member of the current
             # model as if it were an observation
@@ -171,6 +217,8 @@ function mmda(; x0::AbstractVector{float_type},
             crps[model, cycle] = xskillscore.crps_ensemble(x_true, E_corr_array).values[1]
             spread[model, cycle] = mean(std(E, dims=2))
 
+            #propagators[model] = integrator_prop(model_jacs[model], x_m, t,
+            #                                     t + window*outfreq*Δt, Δt)
             #E = ensembles_a[model]
             for i=1:ens_sizes[model]
                 integration = integrator(models[model], E[:, i], t,
