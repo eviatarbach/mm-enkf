@@ -42,15 +42,15 @@ x0 = x0[end, :]
 #x0 = ensembles[1][:, end]
 n_cycles = 500
 #spinup = 14600
-spinup = 100
-ρ = 0.5
+spinup = 500
+ρ = 0.8
 
 model_errs = [ens_forecast.model_err(model_true=model_true, model_err=models[model],
                                      integrator=integrator, x0=x0, t0=t0,
                                      outfreq=outfreq, Δt=Δt, window=window,
                                      n_samples=400)[1] for model=1:n_models]
 
-ensembles = [x0 .+ rand(MvNormal(R), ens_sizes[model]) for model=1:n_models]
+ensembles = [x0 .+ rand(MvNormal(R), 40) for model=1:n_models]
 
 model_errs = Vector{Matrix{Float64}}(undef, n_models)#[nothing, nothing]
 biases = [zeros(13), zeros(13)]#[nothing, nothing]
@@ -62,18 +62,18 @@ inflations = [1.0]
 info1, ensembles, x0 = ens_forecast.mmda(x0=x0, ensembles=ensembles, models=[models[1]],
                          model_true=model_true, obs_ops=obs_ops, H=H,
                          model_errs=model_errs, biases=biases, integrator=integrator,
-                         ens_sizes=ens_sizes, Δt=Δt, window=window,
+                         ens_sizes=[40], Δt=Δt, window=window,
                          n_cycles=spinup, outfreq=outfreq,
                          model_sizes=model_sizes, R=R, ρ=ρ, inflations=inflations,
                          α=α)
 
 inflations = [1.0]
-ensembles = [x0 .+ rand(MvNormal(R), ens_sizes[model]) for model=1:n_models]
+ensembles = [x0 .+ rand(MvNormal(R), 40) for model=1:n_models]
 
 info2, ensembles, x0 = ens_forecast.mmda(x0=x0, ensembles=ensembles, models=[models[2]],
                             model_true=model_true, obs_ops=obs_ops, H=H,
                             model_errs=model_errs, biases=biases, integrator=integrator,
-                            ens_sizes=ens_sizes, Δt=Δt, window=window,
+                            ens_sizes=[40], Δt=Δt, window=window,
                             n_cycles=spinup, outfreq=outfreq,
                             model_sizes=model_sizes, R=R, ρ=ρ, inflations=inflations,
                             α=α)
@@ -92,4 +92,4 @@ info, ensembles, _ = ens_forecast.mmda(x0=x0, ensembles=ensembles, models=models
                          ens_sizes=ens_sizes, Δt=Δt, window=window,
                          n_cycles=n_cycles, outfreq=outfreq,
                          model_sizes=model_sizes, R=R, ρ=ρ, inflations=inflations,
-                         α=α)
+                         α=α, mmm=true)

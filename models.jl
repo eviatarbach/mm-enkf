@@ -14,7 +14,7 @@ function System(func_generic, params)
    return System(func, jac, params)
 end
 
-zygote = false
+zygote = true
 sim_func = zygote ? Zygote.Buffer : similar
 
 function colpitts(t, u, p)
