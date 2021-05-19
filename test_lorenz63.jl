@@ -42,7 +42,6 @@ x0 = x0[end, :]
 #x0 = ensembles[1][:, end]
 n_cycles = 1000
 ρ = 1e-3
-α = 1.0
 
 #model_errs = [ens_forecast.model_err(model_true=model_true, model_err=models[model],
 #                                     integrator=integrator, x0=x0, t0=t0,
@@ -53,7 +52,6 @@ infos = Vector(undef, n_models)
 for model=1:length(models)
     model_errs = [0.1*diagm(0=>ones(D))]#Vector{Matrix{Float64}}(undef, 1)]
     biases = [zeros(D)]
-    inflations = [1.0]
 
     ensembles = [x0 .+ rand(MvNormal(R), sum(ens_sizes))]
 
@@ -64,8 +62,7 @@ for model=1:length(models)
                          model_errs=model_errs, biases=biases, integrator=integrator,
                          ens_sizes=[sum(ens_sizes)], Δt=Δt, window=window,
                          n_cycles=n_cycles, outfreq=outfreq,
-                         model_sizes=model_sizes, R=R, ρ=ρ, inflations=inflations,
-                         α=α)
+                         model_sizes=model_sizes, R=R, ρ=ρ)
     infos[model] = info
 end
 
@@ -79,7 +76,6 @@ biases = [zeros(3), zeros(3), zeros(3)]
 # #biases = [mean(incs1, dims=2)[:], mean(incs2, dims=2)[:]]
 # #biases = [zeros(3), zeros(3)]
 
-inflations = [1.0, 1.0, 1.0]
 # #ensembles = [x0 .+ rand(MvNormal(R), ens_sizes[model]) for model=1:n_models]
 ensembles = [x0 .+ rand(MvNormal(R), ens_sizes[model]) for model=1:n_models]
 
@@ -88,5 +84,4 @@ info_mm, _, _ = ens_forecast.mmda(x0=x0, ensembles=ensembles, models=models,
                          model_errs=model_errs, biases=biases, integrator=integrator,
                          ens_sizes=ens_sizes, Δt=Δt, window=window,
                          n_cycles=n_cycles, outfreq=outfreq,
-                         model_sizes=model_sizes, R=R, ρ=ρ, inflations=inflations,
-                         α=α)
+                         model_sizes=model_sizes, R=R, ρ=ρ)

@@ -70,8 +70,8 @@ function mmda(; x0::AbstractVector{float_type},
                 ens_sizes::AbstractVector{int_type},
                 Δt::float_type, window::int_type, n_cycles::int_type,
                 outfreq::int_type, model_sizes::AbstractVector{int_type},
-                R::Symmetric{float_type}, ρ::float_type, inflations::AbstractVector{float_type},
-                α::float_type, mmm::Bool=false) where {float_type<:AbstractFloat, int_type<:Integer}
+                R::Symmetric{float_type}, ρ::float_type,
+                mmm::Bool=false) where {float_type<:AbstractFloat, int_type<:Integer}
     n_models = length(models)
     obs_err_dist = MvNormal(R)
     R_inv = inv(R)
@@ -117,7 +117,7 @@ function mmda(; x0::AbstractVector{float_type},
             model_errs[model] = Q
             biases[model] = b
 
-            E += α*rand(MvNormal(biases[model], model_errs[model]), ens_sizes[model])
+            E += rand(MvNormal(biases[model], model_errs[model]), ens_sizes[model])
 
             ensembles[model] = E
         end
