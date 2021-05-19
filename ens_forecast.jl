@@ -79,10 +79,8 @@ function mmda(; x0::AbstractVector{float_type},
 
     x_true = x0
 
-    #ensembles_a = similar(ensembles)
     errs = Array{float_type}(undef, n_models, n_cycles)
     crps = Array{float_type}(undef, n_models, n_cycles)
-    #innovations = Array{Vector{float_type}}(undef, n_models, n_cycles)
     Q_hist = Array{Matrix{float_type}}(undef, n_models, n_cycles)
     spread = Array{float_type}(undef, n_models, n_cycles)
 
@@ -93,51 +91,35 @@ function mmda(; x0::AbstractVector{float_type},
 
         y = H*x_true + rand(obs_err_dist)
 
-        #for model=1:n_models
-        #    x_f = mean(ensembles[model], dims=2)
-        #    # Assimilate observations
-        #    ensembles_a[model] = ETKF.etkf(E=ensembles[model], R_inv=R_inv, H=H, y=y)
-        #    increments[model, cycle] = (x_f - mean(ensembles_a[model], dims=2))[:]
-        #    innovations[model, cycle] = (y - x_f)[:]
-        #end
+        for model=1:n_models
+            E = ensembles[model]
 
-        if cycle > 1
-            for model=1:n_models
-                E = ensembles[model]
-                #E_a = ensembles_a[model]
-                m = ens_sizes[model]
+            H_model_prime = obs_op_primes[model]
 
-                H_model_prime = obs_op_primes[model]
+            x_m = mean(E, dims=2)
+            #P_true = (x_true - x_m)*(x_true - x_m)'
+            innovation = y - H_model_prime*x_m
+            P_e = innovation*innovation'
+            P_f = Symmetric(cov(E'))
 
-                #P_true = (E .- x_true)*(E .- x_true)'/(m - 1)
-                P_e = (E .- y)*(E .- y)'/(m - 1)
+            Q_est = inv(H_model_prime)*(P_e - R - H_model_prime*P_f*H_model_prime')*inv(H_model_prime)'
+            #Q_est = P_true - P_f
 
-                x_m = mean(E, dims=2)
-                #P_true = (x_true - x_m)*(x_true - x_m)'
-                #avg += mean((P_e/m)./P_true)#tr(P_e/m)/tr(P_true)
-                #println(avg/cycle)
-                P_e = (x_m - y)*(x_m - y)'
-                P_f = Symmetric(cov(E'))
+            Q = ρ*Q_est + (1 - ρ)*model_errs[model]
+            b = ρ*innovation[:] + (1 - ρ)*biases[model]
 
-                #Q_est = diagm(0=>diag(P_e - R - P_f))
-                Q_est = inv(H_model_prime)*(P_e - R - H_model_prime*P_f*H_model_prime')*inv(H_model_prime)'
-                #Q_est = P_true - P_f
-
-                Q = ρ*Q_est + (1 - ρ)*model_errs[model]
-
-                if !isposdef(Q)
-                    Q = make_psd(Q)
-                    println("not PSD")
-                end
-
-                Q_hist[model, cycle] = Q
-                model_errs[model] = Q
-
-                if cycle > 1
-                    E -= α*rand(MvNormal(biases[model], model_errs[model]), ens_sizes[model])
-                end
-                ensembles[model] = E
+            if !isposdef(Q)
+                Q = make_psd(Q)
+                println("not PSD")
             end
+
+            Q_hist[model, cycle] = Q
+            model_errs[model] = Q
+            biases[model] = b
+
+            E += α*rand(MvNormal(biases[model], model_errs[model]), ens_sizes[model])
+
+            ensembles[model] = E
         end
 
         # Iterative multi-model data assimilation
@@ -149,11 +131,7 @@ function mmda(; x0::AbstractVector{float_type},
 
                 E_model = ensembles[model]
 
-                #m = ens_sizes[model]
                 H_model = obs_ops[model]
-                #H_model_prime = H*inv(H_model)
-
-                #x_m = mean(E_model, dims=2)
 
                 P_f = cov(E_model')
                 P_f_diag = Diagonal(diagm(0=>diag(P_f)))
@@ -162,9 +140,6 @@ function mmda(; x0::AbstractVector{float_type},
                 # Assimilate the forecast of each ensemble member of the current
                 # model as if it were an observation
                 E = ETKF.etkf(E=E, R_inv=P_f_inv, H=H_model, y=mean(E_model, dims=2)[:, 1])
-                #for i=1:m
-                #    E = ETKF.etkf(E=E, R_inv=P_f_inv/m, H=H_model, y=E_model[:, i])
-                #end
 
                 ensembles[model] = E
             end
