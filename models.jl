@@ -86,25 +86,34 @@ end
 
 lorenz63_true = System(lorenz63, Dict("σ" => 10, "β" => 8/3, "ρ" => 28))
 
-lorenz63_err = System(lorenz63, Dict("σ" => 11, "β" => 8/3 - 0.1, "ρ" => 28))
+lorenz63_err = System(lorenz63, Dict("σ" => 10, "β" => 8/3 - 0.1, "ρ" => 28))
 lorenz63_err2 = System(lorenz63, Dict("σ" => 10 - 0.3, "β" => 8/3, "ρ" => 28.1))
 lorenz63_err3 = System(lorenz63, Dict("σ" => 10.00001, "β" => 8/3, "ρ" => 28))
 lorenz63_err4 = System(lorenz63, Dict("σ" => 10, "β" => (1 + 0.1)*(8/3), "ρ" => 28))
 
 function lorenz96(t, u, p)
-   N = 13
+   N = 40
 
    # compute state derivatives
    du = sim_func(u)
 
    # first the 3 edge cases: i=1,2,N
-   du[1] = (u[2] - u[N-1])*u[N] - u[1] + p["F"]
-   du[2] = (u[3] - u[N])*u[1] - u[2] + p["F"]
-   du[N] = (u[1] - u[N-2])*u[N-1] - u[N] + p["F"]
+   du[1] = (u[2] - u[N-1])*u[N] - u[1] + p["F1"]
+   du[2] = (u[3] - u[N])*u[1] - u[2] + p["F1"]
+   du[N] = (u[1] - u[N-2])*u[N-1] - u[N] + p["F4"]
 
    # then the general case
    for i=3:N-1
-       du[i] = (u[i+1] - u[i-2])*u[i-1] - u[i] + p["F"]
+      if i <= 10
+         F = p["F1"]
+      elseif i <= 20
+         F = p["F2"]
+      elseif i <= 30
+         F = p["F3"]
+      else
+         F = p["F4"]
+      end
+      du[i] = (u[i+1] - u[i-2])*u[i-1] - u[i] + F
    end
 
    #du = du .+ p["F"]
@@ -112,10 +121,10 @@ function lorenz96(t, u, p)
    return copy(du)
 end
 
-lorenz96_true = System(lorenz96, Dict("F" => 8))
+lorenz96_true = System(lorenz96, Dict("F1" => 8, "F2" => 12, "F3" => 14, "F4" => 10))
 
-lorenz96_err = System(lorenz96, Dict("F" => 6))
-lorenz96_err2 = System(lorenz96, Dict("F" => 7))
+lorenz96_err = System(lorenz96, Dict("F1" => 8, "F2" => 8, "F3" => 8, "F4" => 8))
+lorenz96_err2 = System(lorenz96, Dict("F1" => 12, "F2" => 12, "F3" => 12, "F4" => 12))
 lorenz96_err3 = System(lorenz96, Dict("F" => 9))
 lorenz96_err4 = System(lorenz96, Dict("F" => 10))
 
