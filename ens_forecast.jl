@@ -16,6 +16,7 @@ using PyCall
 
 struct Forecast_Info
     errs
+    errs_fcst
     crps
     spread
     Q_hist
@@ -82,7 +83,8 @@ function mmda(; x0::AbstractVector{float_type},
 
     x_true = x0
 
-    errs = Array{float_type}(undef, n_models, n_cycles)
+    errs = Array{float_type}(undef, n_cycles, model_sizes[1])
+    errs_fcst = Array{float_type}(undef, n_models, n_cycles, model_sizes[1])
     crps = Array{float_type}(undef, n_models, n_cycles)
     Q_hist = Array{Matrix{float_type}}(undef, n_models, n_cycles)
     bias_hist = Array{Vector{float_type}}(undef, n_models, n_cycles)
@@ -148,13 +150,18 @@ function mmda(; x0::AbstractVector{float_type},
             ensembles[model] = E
         end
 
+        ensembles_new = similar(ensembles)
         # Iterative multi-model data assimilation
         if ~mmm
-            for order in orders
+            for (i, order) in enumerate(orders)
                 for model=2:n_models
                     # Posterior ensemble of the previous model is used as the prior
                     # ensemble for the next model
-                    E = ensembles[order[model-1]]
+                    if model == 2
+                        E = ensembles[order[model-1]]
+                    else
+                        E = ensembles_new[i]
+                    end
 
                     E_model = ensembles[order[model]]
 
@@ -168,17 +175,25 @@ function mmda(; x0::AbstractVector{float_type},
                     # model as if it were an observation
                     E = ETKF.etkf(E=E, R_inv=P_f_inv, H=H_model, y=mean(E_model, dims=2)[:, 1])
 
-                    ensembles[model] = E
+                    ensembles_new[i] = E
                 end
             end
         end
 
+        if (n_models > 1) & (~mmm)
+            ensembles = ensembles_new
+        end
+
+        for model=1:n_models
+            x_m = mean(ensembles[model], dims=2)
+            errs_fcst[model, cycle, :] = x_m .- x_true
+        end
         #if mmm
         E_a = ETKF.etkf(E=hcat(ensembles...), R_inv=R_inv, H=H, y=y)
         #else
         #    E_a = ETKF.etkf(E=ensembles[n_models], R_inv=R_inv, H=H, y=y)
         #end
-
+        errs[cycle, :] = mean(E_a, dims=2) .- x_true
         for model=1:n_models
             # Map from reference model space to the current model space
             #if ~mmm
@@ -188,7 +203,7 @@ function mmda(; x0::AbstractVector{float_type},
             #end
             x_m = mean(E, dims=2)
 
-            errs[model, cycle] = sqrt(mean((x_m .- x_true).^2))
+            #errs[model, cycle, :] = x_m .- x_true
             E_corr_array = xarray.DataArray(data=E, dims=["dim", "member"])
             crps[model, cycle] = xskillscore.crps_ensemble(x_true, E_corr_array).values[1]
             spread[model, cycle] = mean(std(E, dims=2))
@@ -207,7 +222,7 @@ function mmda(; x0::AbstractVector{float_type},
         t += window*outfreq*Δt
     end
 
-    return Forecast_Info(errs, crps, spread, Q_hist, bias_hist), ensembles, x_true
+    return Forecast_Info(errs, errs_fcst, crps, spread, Q_hist, bias_hist), ensembles, x_true
 end
 
 end
