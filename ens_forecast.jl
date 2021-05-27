@@ -20,6 +20,7 @@ struct Forecast_Info
     crps
     spread
     Q_hist
+    Q_true_hist
     bias_hist
 end
 
@@ -68,6 +69,7 @@ function mmda(; x0::AbstractVector{float_type},
                 orders,
                 obs_ops::AbstractVector{<:AbstractMatrix}, H::AbstractMatrix,
                 model_errs::AbstractVector{<:Union{AbstractMatrix{float_type}, Nothing}},
+                model_errs_prescribed,
                 biases::AbstractVector{<:Union{AbstractVector{float_type}, Nothing}},
                 integrator::Function,
                 ens_sizes::AbstractVector{int_type},
@@ -87,6 +89,7 @@ function mmda(; x0::AbstractVector{float_type},
     errs_fcst = Array{float_type}(undef, n_models, n_cycles, model_sizes[1])
     crps = Array{float_type}(undef, n_models, n_cycles)
     Q_hist = Array{Matrix{float_type}}(undef, n_models, n_cycles)
+    Q_true_hist = Array{Matrix{float_type}}(undef, n_models, n_cycles)
     bias_hist = Array{Vector{float_type}}(undef, n_models, n_cycles)
     spread = Array{float_type}(undef, n_models, n_cycles)
 
@@ -104,12 +107,13 @@ function mmda(; x0::AbstractVector{float_type},
 
             x_m = mean(E, dims=2)
             m = ens_sizes[model]
-            #P_true = (x_true - x_m)*(x_true - x_m)'
+            P_true = (E .- x_true)*(E .- x_true)'/(m - 1)#(x_true - x_m)*(x_true - x_m)'
             innovation = y - H_model_prime*x_m
             #P_e = innovation*innovation'
             P_e = (H_model_prime*E .- y)*(H_model_prime*E .- y)'/(m - 1)
             P_f = Symmetric(cov(E'))
 
+            b = ρ*innovation[:] + (1 - ρ)*biases[model]
             if fixed
                 λ = tr(P_e - H_model_prime*P_f*H_model_prime' - R)/tr(H_model_prime*model_errs_fixed[model]*H_model_prime')
                 Q_est = λ*model_errs_fixed[model]
@@ -127,13 +131,12 @@ function mmda(; x0::AbstractVector{float_type},
 
                 #b = ρ*innovation[:] + (1 - ρ)*biases[model]
             else
-                Q_est = inv(H_model_prime)*(P_e - R - H_model_prime*P_f*H_model_prime')*inv(H_model_prime)'
-                #Q_est = P_true - P_f
+                Q_est = inv(H_model_prime)*(P_e - R - H_model_prime*(P_f - model_errs_prescribed[model])*H_model_prime' - (H_model_prime*b)*(H_model_prime*b)')*inv(H_model_prime)'
+                Q_true = P_true - (P_f - model_errs_prescribed[model])
                 #Q_est = diagm(0=>diag(Q_est))
             end
 
             Q = ρ*Q_est + (1 - ρ)*model_errs[model]
-            b = ρ*innovation[:] + (1 - ρ)*biases[model]
 
             if !isposdef(Q)
                 Q = make_psd(Q)
@@ -141,6 +144,7 @@ function mmda(; x0::AbstractVector{float_type},
             end
 
             Q_hist[model, cycle] = Q
+            Q_true_hist[model, cycle] = Q_true
             model_errs[model] = Q
             bias_hist[model, cycle] = b
             biases[model] = b
@@ -211,7 +215,7 @@ function mmda(; x0::AbstractVector{float_type},
             Threads.@threads for i=1:ens_sizes[model]
                 integration = integrator(models[model], E[:, i], t,
                                          t + window*outfreq*Δt, Δt, inplace=false)
-                E[:, i] = integration[end, :]
+                E[:, i] = integration[end, :] + rand(MvNormal(model_errs_prescribed[model]))
             end
 
             ensembles[model] = E
@@ -222,7 +226,7 @@ function mmda(; x0::AbstractVector{float_type},
         t += window*outfreq*Δt
     end
 
-    return Forecast_Info(errs, errs_fcst, crps, spread, Q_hist, bias_hist), ensembles, x_true
+    return Forecast_Info(errs, errs_fcst, crps, spread, Q_hist, Q_true_hist, bias_hist), ensembles, x_true
 end
 
 end
