@@ -75,8 +75,8 @@ function mmda(; x0::AbstractVector{float_type},
                 ens_sizes::AbstractVector{int_type},
                 Δt::float_type, window::int_type, n_cycles::int_type,
                 outfreq::int_type, model_sizes::AbstractVector{int_type},
-                R::Symmetric{float_type}, ρ::float_type,
-                mmm::Bool=false, fixed=false) where {float_type<:AbstractFloat, int_type<:Integer}
+                R::Symmetric{float_type}, ens_err=false, ρ::float_type,
+                mmm::Bool=false, fixed=false, fcst=false) where {float_type<:AbstractFloat, int_type<:Integer}
     n_models = length(models)
     obs_err_dist = MvNormal(R)
     R_inv = inv(R)
@@ -86,7 +86,7 @@ function mmda(; x0::AbstractVector{float_type},
     x_true = x0
 
     errs = Array{float_type}(undef, n_cycles, model_sizes[1])
-    errs_fcst = Array{float_type}(undef, n_models, n_cycles, model_sizes[1])
+    errs_fcst = Array{float_type}(undef, n_cycles, model_sizes[1])
     crps = Array{float_type}(undef, n_models, n_cycles)
     Q_hist = Array{Matrix{float_type}}(undef, n_models, n_cycles)
     Q_true_hist = Array{Matrix{float_type}}(undef, n_models, n_cycles)
@@ -109,11 +109,11 @@ function mmda(; x0::AbstractVector{float_type},
             m = ens_sizes[model]
             P_true = (E .- x_true)*(E .- x_true)'/(m - 1)#(x_true - x_m)*(x_true - x_m)'
             innovation = y - H_model_prime*x_m
-            #P_e = innovation*innovation'
-            P_e = (H_model_prime*E .- y)*(H_model_prime*E .- y)'/(m - 1)
-            P_f = Symmetric(cov(E'))
-
+            P_e = innovation*innovation'
             b = ρ*innovation[:] + (1 - ρ)*biases[model]
+            #E .+= b
+            #P_e = (H_model_prime*E .- y)*(H_model_prime*E .- y)'/(m - 1)
+            P_f = Symmetric(cov(E'))
             if fixed
                 λ = tr(P_e - H_model_prime*P_f*H_model_prime' - R)/tr(H_model_prime*model_errs_fixed[model]*H_model_prime')
                 Q_est = λ*model_errs_fixed[model]
@@ -131,8 +131,8 @@ function mmda(; x0::AbstractVector{float_type},
 
                 #b = ρ*innovation[:] + (1 - ρ)*biases[model]
             else
-                Q_est = inv(H_model_prime)*(P_e - R - H_model_prime*(P_f - model_errs_prescribed[model])*H_model_prime' - (H_model_prime*b)*(H_model_prime*b)')*inv(H_model_prime)'
-                Q_true = P_true - (P_f - model_errs_prescribed[model])
+                Q_est = inv(H_model_prime)*(P_e - R - H_model_prime*P_f*H_model_prime')*inv(H_model_prime)'
+                Q_true = P_true - P_f
                 #Q_est = diagm(0=>diag(Q_est))
             end
 
@@ -149,7 +149,7 @@ function mmda(; x0::AbstractVector{float_type},
             bias_hist[model, cycle] = b
             biases[model] = b
 
-            E += rand(MvNormal(biases[model], model_errs[model]), ens_sizes[model])
+            E += rand(MvNormal(model_errs[model]), ens_sizes[model])
 
             ensembles[model] = E
         end
@@ -188,22 +188,23 @@ function mmda(; x0::AbstractVector{float_type},
             ensembles = ensembles_new
         end
 
-        for model=1:n_models
-            x_m = mean(ensembles[model], dims=2)
-            errs_fcst[model, cycle, :] = x_m .- x_true
-        end
+        errs_fcst[cycle, :] = mean(hcat(ensembles...), dims=2) - x_true
         #if mmm
         E_a = ETKF.etkf(E=hcat(ensembles...), R_inv=R_inv, H=H, y=y)
         #else
         #    E_a = ETKF.etkf(E=ensembles[n_models], R_inv=R_inv, H=H, y=y)
         #end
-        errs[cycle, :] = mean(E_a, dims=2) .- x_true
+        errs[cycle, :] = mean(E_a, dims=2) - x_true
         for model=1:n_models
             # Map from reference model space to the current model space
             #if ~mmm
             #    E = obs_ops[model]*E_a
             #else
-            E = obs_ops[model]*E_a[:, ens_sizes[model]*(model-1)+1:ens_sizes[model]*(model)]
+            if fcst
+                E = x_true .+ rand(MvNormal(ens_err), ens_sizes[model])
+            else
+                E = obs_ops[model]*E_a[:, ens_sizes[model]*(model-1)+1:ens_sizes[model]*(model)]
+            end
             #end
             x_m = mean(E, dims=2)
 
@@ -212,10 +213,11 @@ function mmda(; x0::AbstractVector{float_type},
             crps[model, cycle] = xskillscore.crps_ensemble(x_true, E_corr_array).values[1]
             spread[model, cycle] = mean(std(E, dims=2))
 
+            pert = rand(MvNormal(model_errs_prescribed[model]))
             Threads.@threads for i=1:ens_sizes[model]
                 integration = integrator(models[model], E[:, i], t,
                                          t + window*outfreq*Δt, Δt, inplace=false)
-                E[:, i] = integration[end, :] + rand(MvNormal(model_errs_prescribed[model]))
+                E[:, i] = integration[end, :] + pert
             end
 
             ensembles[model] = E
