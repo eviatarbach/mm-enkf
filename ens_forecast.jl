@@ -1,9 +1,5 @@
 module ens_forecast
 
-include("etkf.jl")
-
-import .ETKF
-
 export model_err, init_ens, mmda
 
 using Statistics
@@ -71,7 +67,7 @@ function mmda(; x0::AbstractVector{float_type},
                 model_errs::AbstractVector{<:Union{AbstractMatrix{float_type}, Nothing}},
                 model_errs_prescribed,
                 biases::AbstractVector{<:Union{AbstractVector{float_type}, Nothing}},
-                integrator::Function,
+                integrator::Function, da_method::Function,
                 ens_sizes::AbstractVector{int_type},
                 Δt::float_type, window::int_type, n_cycles::int_type,
                 outfreq::int_type, model_sizes::AbstractVector{int_type},
@@ -177,7 +173,7 @@ function mmda(; x0::AbstractVector{float_type},
 
                     # Assimilate the forecast of each ensemble member of the current
                     # model as if it were an observation
-                    E = ETKF.etkf(E=E, R_inv=P_f_inv, H=H_model, y=mean(E_model, dims=2)[:, 1])
+                    E = da_method(E=E, R_inv=P_f_inv, H=H_model, y=mean(E_model, dims=2)[:, 1])
 
                     ensembles_new[i] = E
                 end
@@ -190,7 +186,7 @@ function mmda(; x0::AbstractVector{float_type},
 
         errs_fcst[cycle, :] = mean(hcat(ensembles...), dims=2) - x_true
         #if mmm
-        E_a = ETKF.etkf(E=hcat(ensembles...), R_inv=R_inv, H=H, y=y)
+        E_a = da_method(E=hcat(ensembles...), R_inv=R_inv, H=H, y=y)
         #else
         #    E_a = ETKF.etkf(E=ensembles[n_models], R_inv=R_inv, H=H, y=y)
         #end
@@ -203,7 +199,7 @@ function mmda(; x0::AbstractVector{float_type},
             if fcst
                 E = x_true .+ rand(MvNormal(ens_err), ens_sizes[model])
             else
-                E = obs_ops[model]*E_a[:, ens_sizes[model]*(model-1)+1:ens_sizes[model]*(model)]
+                E = obs_ops[model]*E_a[:, [0; cumsum(ens_sizes)][model]+1:[0; cumsum(ens_sizes)][model+1]]
             end
             #end
             x_m = mean(E, dims=2)
