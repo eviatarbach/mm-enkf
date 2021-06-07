@@ -27,9 +27,10 @@ end
 """
 Ensemble transform Kalman filter (ETKF)
 """
-function etkf(; E::AbstractMatrix{float_type}, R_inv::Symmetric{float_type},
+function etkf(; E::AbstractMatrix{float_type}, R::Symmetric{float_type},
+                R_inv::Symmetric{float_type},
                 inflation::float_type=1.0, H::AbstractMatrix,
-                y::AbstractVector{float_type}) where {float_type<:AbstractFloat}
+                y::AbstractVector{float_type}, ρ=nothing) where {float_type<:AbstractFloat}
     D, m = size(E)
 
     x_m = mean(E, dims=2)
@@ -47,24 +48,25 @@ function etkf(; E::AbstractMatrix{float_type}, R_inv::Symmetric{float_type},
     return E
 end
 
-function ensrf(; E::AbstractMatrix{float_type}, R_inv::Symmetric{float_type},
+function ensrf(; E::AbstractMatrix{float_type}, R::Symmetric{float_type},
+                 R_inv::Symmetric{float_type},
                  inflation::float_type=1.0, H::AbstractMatrix,
                  y::AbstractVector{float_type}, ρ=nothing) where {float_type<:AbstractFloat}
     D, m = size(E)
 
     x_m = mean(E, dims=2)
-    X = (E .- x_m)/sqrt(m - 1)
+    A = E .- x_m
 
     if ρ === nothing
-        P = inflation*X*X'
+        P = inflation*A*A'/(m - 1)
     else
-        P = inflation*ρ.*(X*X')
+        P = inflation*ρ.*(A*A')/(m - 1)
     end
 
-    K = P*H'*inv(H*P*H' + inv(R_inv))
+    K = P*H'*inv(H*P*H' + R)
     x_m .+= K*(y - H*x_m)
 
-    E = x_m .+ inv(sqrt(I + P*H'*R_inv*H))*X
+    E = x_m .+ real((I + P*H'*R_inv*H)^(-1/2))*A
 end
 
 end

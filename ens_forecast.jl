@@ -67,7 +67,7 @@ function mmda(; x0::AbstractVector{float_type},
                 model_errs::AbstractVector{<:Union{AbstractMatrix{float_type}, Nothing}},
                 model_errs_prescribed,
                 biases::AbstractVector{<:Union{AbstractVector{float_type}, Nothing}},
-                integrator::Function, da_method::Function,
+                integrator::Function, da_method::Function, localization,
                 ens_sizes::AbstractVector{int_type},
                 Δt::float_type, window::int_type, n_cycles::int_type,
                 outfreq::int_type, model_sizes::AbstractVector{int_type},
@@ -173,7 +173,8 @@ function mmda(; x0::AbstractVector{float_type},
 
                     # Assimilate the forecast of each ensemble member of the current
                     # model as if it were an observation
-                    E = da_method(E=E, R_inv=P_f_inv, H=H_model, y=mean(E_model, dims=2)[:, 1])
+                    E = da_method(E=E, R=Symmetric(Matrix(P_f_diag)), R_inv=P_f_inv, H=H_model, y=mean(E_model, dims=2)[:, 1],
+                                  ρ=localization)
 
                     ensembles_new[i] = E
                 end
@@ -186,7 +187,7 @@ function mmda(; x0::AbstractVector{float_type},
 
         errs_fcst[cycle, :] = mean(hcat(ensembles...), dims=2) - x_true
         #if mmm
-        E_a = da_method(E=hcat(ensembles...), R_inv=R_inv, H=H, y=y)
+        E_a = da_method(E=hcat(ensembles...), R=R, R_inv=R_inv, H=H, y=y, ρ=localization)
         #else
         #    E_a = ETKF.etkf(E=ensembles[n_models], R_inv=R_inv, H=H, y=y)
         #end

@@ -31,10 +31,11 @@ orders = [[1, 2, 3, 4], [2, 1, 3, 4], [3, 1, 2, 4], [4, 1, 2, 3]][1:2]
 n_models = length(models)
 obs_ops = [I(D), I(D), I(D), I(D)]
 H = I(D)
-ens_sizes = [10, 40, 20, 20]
+ens_sizes = [20, 20, 20, 20]
 model_sizes = [D, D, D, D]
 integrator = Integrators.rk4
 da_method = DA.ensrf
+localization = DA.gaspari_cohn(10, D)
 x0 = randn(D)
 t0 = 0.0
 Δt = 0.05
@@ -68,6 +69,7 @@ for model=1:length(models)
                          model_errs=model_errs,
                          model_errs_prescribed=[model_errs_prescribed[model]],
                          biases=biases, integrator=integrator, da_method=da_method,
+                         localization=localization,
                          ens_sizes=[cumsum(ens_sizes)[n_models]], Δt=Δt, window=window,
                          n_cycles=n_cycles, outfreq=outfreq,
                          model_sizes=model_sizes, R=R, ens_err=ens_err,
@@ -75,7 +77,6 @@ for model=1:length(models)
     infos[model] = info
 end
 
-exit
 #incs1 = hcat(info1.increments...)
 #incs2 = hcat(info2.increments...)
 #model_errs = [cov(incs1'), cov(incs2')]
@@ -92,6 +93,7 @@ info_mm, _, _ = ens_forecast.mmda(x0=x0, ensembles=ensembles, models=models,
                          model_true=model_true, orders=orders, obs_ops=obs_ops, H=H,
                          model_errs=model_errs, model_errs_prescribed=model_errs_prescribed,
                          biases=biases, integrator=integrator, da_method=da_method,
+                         localization=localization,
                          ens_sizes=ens_sizes, Δt=Δt, window=window,
                          n_cycles=n_cycles, outfreq=outfreq,
                          model_sizes=model_sizes, R=R, ens_err=ens_err,
@@ -108,6 +110,7 @@ info_mm2, _, _ = ens_forecast.mmda(x0=x0, ensembles=ensembles, models=models,
                         model_true=model_true, orders=orders, obs_ops=obs_ops, H=H,
                         model_errs=model_errs, model_errs_prescribed=model_errs_prescribed,
                         biases=biases, integrator=integrator, da_method=da_method,
+                        localization=localization,
                         ens_sizes=ens_sizes, Δt=Δt, window=window,
                         n_cycles=n_cycles, outfreq=outfreq,
                         model_sizes=model_sizes, R=R, ens_err=ens_err,
