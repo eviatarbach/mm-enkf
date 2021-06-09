@@ -18,6 +18,7 @@ struct Forecast_Info
     Q_hist
     Q_true_hist
     bias_hist
+    analyses
 end
 
 xskillscore = pyimport("xskillscore")
@@ -72,7 +73,8 @@ function mmda(; x0::AbstractVector{float_type},
                 Δt::float_type, window::int_type, n_cycles::int_type,
                 outfreq::int_type, model_sizes::AbstractVector{int_type},
                 R::Symmetric{float_type}, ens_err=false, ρ::float_type,
-                mmm::Bool=false, fixed=false, fcst=false) where {float_type<:AbstractFloat, int_type<:Integer}
+                mmm::Bool=false, fixed=false, fcst=false,
+                save_analyses::Bool=false, prev_analyses=nothing) where {float_type<:AbstractFloat, int_type<:Integer}
     n_models = length(models)
     obs_err_dist = MvNormal(R)
     R_inv = inv(R)
@@ -88,6 +90,11 @@ function mmda(; x0::AbstractVector{float_type},
     Q_true_hist = Array{Matrix{float_type}}(undef, n_models, n_cycles)
     bias_hist = Array{Vector{float_type}}(undef, n_models, n_cycles)
     spread = Array{float_type}(undef, n_models, n_cycles)
+    if save_analyses
+        analyses = Array{float_type}(undef, n_cycles, model_sizes[1], sum(ens_sizes))
+    else
+        analyses = nothing
+    end
 
     t = 0.0
 
@@ -191,6 +198,9 @@ function mmda(; x0::AbstractVector{float_type},
         #else
         #    E_a = ETKF.etkf(E=ensembles[n_models], R_inv=R_inv, H=H, y=y)
         #end
+        if save_analyses
+            analyses[cycle, :, :] = E_a
+        end
         errs[cycle, :] = mean(E_a, dims=2) - x_true
         for model=1:n_models
             # Map from reference model space to the current model space
@@ -199,6 +209,8 @@ function mmda(; x0::AbstractVector{float_type},
             #else
             if fcst
                 E = x_true .+ rand(MvNormal(ens_err), ens_sizes[model])
+            elseif prev_analyses !== nothing
+                E = prev_analyses[cycle, :, [0; cumsum(ens_sizes)][model]+1:[0; cumsum(ens_sizes)][model+1]]
             else
                 E = obs_ops[model]*E_a[:, [0; cumsum(ens_sizes)][model]+1:[0; cumsum(ens_sizes)][model+1]]
             end
@@ -210,7 +222,11 @@ function mmda(; x0::AbstractVector{float_type},
             crps[model, cycle] = xskillscore.crps_ensemble(x_true, E_corr_array).values[1]
             spread[model, cycle] = mean(std(E, dims=2))
 
-            pert = rand(MvNormal(model_errs_prescribed[model]))
+            if model_errs_prescribed[model] === nothing
+                pert = zeros(model_sizes[model])
+            else
+                pert = rand(MvNormal(model_errs_prescribed[model]))
+            end
             Threads.@threads for i=1:ens_sizes[model]
                 integration = integrator(models[model], E[:, i], t,
                                          t + window*outfreq*Δt, Δt, inplace=false)
@@ -225,7 +241,7 @@ function mmda(; x0::AbstractVector{float_type},
         t += window*outfreq*Δt
     end
 
-    return Forecast_Info(errs, errs_fcst, crps, spread, Q_hist, Q_true_hist, bias_hist), ensembles, x_true
+    return Forecast_Info(errs, errs_fcst, crps, spread, Q_hist, Q_true_hist, bias_hist, analyses), ensembles, x_true
 end
 
 end
