@@ -6,7 +6,6 @@ using Statistics
 using LinearAlgebra
 using Random
 
-using NearestNeighbors
 using Distributions
 using PyCall
 
@@ -85,7 +84,7 @@ function mmda(; x0::AbstractVector{float_type},
 
     errs = Array{float_type}(undef, n_cycles, model_sizes[1])
     errs_fcst = Array{float_type}(undef, n_cycles, model_sizes[1])
-    crps = Array{float_type}(undef, n_models, n_cycles)
+    crps = Array{float_type}(undef, n_cycles)
     Q_hist = Array{Matrix{float_type}}(undef, n_models, n_cycles)
     Q_true_hist = Array{Matrix{float_type}}(undef, n_models, n_cycles)
     bias_hist = Array{Vector{float_type}}(undef, n_models, n_cycles)
@@ -176,7 +175,7 @@ function mmda(; x0::AbstractVector{float_type},
 
                     P_f = cov(E_model')
                     P_f_diag = Diagonal(diagm(0=>diag(P_f)))
-                    P_f_inv = Symmetric(inv(P_f_diag))
+                    P_f_inv = Symmetric(inv(localization.*P_f))
 
                     # Assimilate the forecast of each ensemble member of the current
                     # model as if it were an observation
@@ -195,6 +194,10 @@ function mmda(; x0::AbstractVector{float_type},
         errs_fcst[cycle, :] = mean(hcat(ensembles...), dims=2) - x_true
         #if mmm
         E_a = da_method(E=hcat(ensembles...), R=R, R_inv=R_inv, H=H, y=y, ρ=localization)
+
+        E_corr_array = xarray.DataArray(data=E_a, dims=["dim", "member"])
+        crps[cycle] = xskillscore.crps_ensemble(x_true, E_corr_array).values[1]
+
         #else
         #    E_a = ETKF.etkf(E=ensembles[n_models], R_inv=R_inv, H=H, y=y)
         #end
@@ -218,8 +221,6 @@ function mmda(; x0::AbstractVector{float_type},
             x_m = mean(E, dims=2)
 
             #errs[model, cycle, :] = x_m .- x_true
-            E_corr_array = xarray.DataArray(data=E, dims=["dim", "member"])
-            crps[model, cycle] = xskillscore.crps_ensemble(x_true, E_corr_array).values[1]
             spread[model, cycle] = mean(std(E, dims=2))
 
             if model_errs_prescribed[model] === nothing

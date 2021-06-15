@@ -20,13 +20,18 @@ using BandedMatrices
 
 Random.seed!(1)
 
+D = 40
 models = [Models.lorenz96_err.func, Models.lorenz96_err2.func, Models.lorenz96_err3.func,
 Models.lorenz96_err4.func][1:2]
-#models = [Models.lorenz96_err.func, Models.lorenz96_err2.func]
-C = brand(40,40,20,20) .- 0.4
+#models = [Models.lorenz96_true.func, Models.lorenz96_true.func]
+#C = brand(40,40,20,20) .- 0.4
+diag1 = 0.1*ones(D)
+diag1[1:20] .+= 0.4
+diag2 = 0.1*ones(D)
+diag2[21:40] .+= 0.4
+#model_errs_prescribed = [diagm(diag1), diagm(diag2)]
 model_errs_prescribed = [nothing, nothing, nothing, nothing]#[Matrix(C*C')/10, Matrix(C*C')]
 model_true = Models.lorenz96_true.func
-D = 40
 orders = [[1, 2, 3, 4], [2, 1, 3, 4], [3, 1, 2, 4], [4, 1, 2, 3]][1:2]
 n_models = length(models)
 obs_ops = [I(D), I(D), I(D), I(D)]
@@ -35,12 +40,12 @@ ens_sizes = [20, 20, 20, 20]
 model_sizes = [D, D, D, D]
 integrator = Integrators.rk4
 da_method = DA.ensrf
-localization = DA.gaspari_cohn(10, D)
+localization = DA.gaspari_cohn(5, D)
 x0 = randn(D)
 t0 = 0.0
 Δt = 0.05
 outfreq = 1
-window = 5
+window = 1
 transient = 2000
 x0 = integrator(models[1], x0, t0, transient*outfreq*Δt, Δt, inplace=false)
 R = Symmetric(diagm(0=>0.25*ones(D)))
@@ -51,12 +56,12 @@ x0 = x0[end, :]
 #                                   x0=x0, t0=t0, outfreq=outfreq, Δt=Δt,
 #                                   ens_size=ens_sizes[model]) for model=1:n_models]
 #x0 = ensembles[1][:, end]
-n_cycles = 2000
+n_cycles = 10000
 #spinup = 14600
-ρ = 1e-3
+ρ = 1e-4
 
 infos = Vector(undef, n_models)
-for model=1:1#length(models)
+for model=1:length(models)
     model_errs = [0.1*diagm(0=>ones(D))]#Vector{Matrix{Float64}}(undef, 1)]
     biases = [zeros(D)]
 
@@ -88,7 +93,6 @@ ensembles = [x0 .+ rand(MvNormal(R), ens_sizes[model]) for model=1:n_models]
 model_errs = [0.1*diagm(0=>ones(D)) for model=1:n_models]#[mean(infos[1].Q_hist[1000:end]),
              # mean(infos[2].Q_hist[1000:end])]
 
-
 info_mm, _, _ = ens_forecast.mmda(x0=x0, ensembles=ensembles, models=models,
                          model_true=model_true, orders=orders, obs_ops=obs_ops, H=H,
                          model_errs=model_errs, model_errs_prescribed=model_errs_prescribed,
@@ -97,4 +101,4 @@ info_mm, _, _ = ens_forecast.mmda(x0=x0, ensembles=ensembles, models=models,
                          ens_sizes=ens_sizes, Δt=Δt, window=window,
                          n_cycles=n_cycles, outfreq=outfreq,
                          model_sizes=model_sizes, R=R, ens_err=ens_err,
-                         ρ=ρ, fixed=false, fcst=fcst, prev_analyses=infos[1].analyses)
+                         ρ=ρ, fixed=false, fcst=fcst)#, prev_analyses=infos[1].analyses)
