@@ -88,7 +88,7 @@ function mmda(; x0::AbstractVector{float_type},
     Q_hist = Array{Matrix{float_type}}(undef, n_models, n_cycles)
     Q_true_hist = Array{Matrix{float_type}}(undef, n_models, n_cycles)
     bias_hist = Array{Vector{float_type}}(undef, n_models, n_cycles)
-    spread = Array{float_type}(undef, n_models, n_cycles)
+    spread = Array{float_type}(undef, n_cycles)
     if save_analyses
         analyses = Array{float_type}(undef, n_cycles, model_sizes[1], sum(ens_sizes))
     else
@@ -179,7 +179,7 @@ function mmda(; x0::AbstractVector{float_type},
 
                     # Assimilate the forecast of each ensemble member of the current
                     # model as if it were an observation
-                    E = da_method(E=E, R=Symmetric(Matrix(P_f_diag)), R_inv=P_f_inv, H=H_model, y=mean(E_model, dims=2)[:, 1],
+                    E = da_method(E=E, R=Symmetric(Matrix(P_f_inv)), R_inv=P_f_inv, H=H_model, y=mean(E_model, dims=2)[:, 1],
                                   ρ=localization)
 
                     ensembles_new[i] = E
@@ -197,6 +197,8 @@ function mmda(; x0::AbstractVector{float_type},
 
         E_corr_array = xarray.DataArray(data=E_a, dims=["dim", "member"])
         crps[cycle] = xskillscore.crps_ensemble(x_true, E_corr_array).values[1]
+
+        spread[cycle] = mean(std(E_a, dims=2))
 
         #else
         #    E_a = ETKF.etkf(E=ensembles[n_models], R_inv=R_inv, H=H, y=y)
@@ -221,7 +223,6 @@ function mmda(; x0::AbstractVector{float_type},
             x_m = mean(E, dims=2)
 
             #errs[model, cycle, :] = x_m .- x_true
-            spread[model, cycle] = mean(std(E, dims=2))
 
             if model_errs_prescribed[model] === nothing
                 pert = zeros(model_sizes[model])

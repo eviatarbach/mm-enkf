@@ -56,7 +56,7 @@ x0 = x0[end, :]
 #                                   x0=x0, t0=t0, outfreq=outfreq, Δt=Δt,
 #                                   ens_size=ens_sizes[model]) for model=1:n_models]
 #x0 = ensembles[1][:, end]
-n_cycles = 10000
+n_cycles = 5000
 #spinup = 14600
 ρ = 1e-4
 
@@ -102,3 +102,20 @@ info_mm, _, _ = ens_forecast.mmda(x0=x0, ensembles=ensembles, models=models,
                          n_cycles=n_cycles, outfreq=outfreq,
                          model_sizes=model_sizes, R=R, ens_err=ens_err,
                          ρ=ρ, fixed=false, fcst=fcst)#, prev_analyses=infos[1].analyses)
+
+biases = [zeros(D), zeros(D), zeros(D), zeros(D)]#[mean(infos[1].bias_hist[1000:end]), mean(infos[2].bias_hist[1000:end])]
+#[zeros(D), zeros(D)]
+ensembles = [x0 .+ rand(MvNormal(R), ens_sizes[model]) for model=1:n_models]
+
+model_errs = [0.1*diagm(0=>ones(D)) for model=1:n_models]#[mean(infos[1].Q_hist[1000:end]),
+            # mean(infos[2].Q_hist[1000:end])]
+
+info_mm2, _, _ = ens_forecast.mmda(x0=x0, ensembles=ensembles, models=models,
+                         model_true=model_true, orders=orders, obs_ops=obs_ops, H=H,
+                         model_errs=model_errs, model_errs_prescribed=model_errs_prescribed,
+                         biases=biases, integrator=integrator, da_method=da_method,
+                         localization=localization,
+                         ens_sizes=ens_sizes, Δt=Δt, window=window,
+                         n_cycles=n_cycles, outfreq=outfreq,
+                         model_sizes=model_sizes, R=R, ens_err=ens_err,
+                         ρ=ρ, fixed=false, mmm=true, fcst=fcst)
