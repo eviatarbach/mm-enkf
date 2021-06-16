@@ -67,6 +67,8 @@ function ensrf(; E::AbstractMatrix{float_type}, R::Symmetric{float_type},
     x_m .+= K*(y - H*x_m)
 
     E = x_m .+ real((I + P*H'*R_inv*H)^(-1/2))*A
+
+    return E
 end
 
 end

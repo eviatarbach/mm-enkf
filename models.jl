@@ -121,7 +121,7 @@ function lorenz96(t, u, p)
    return copy(du)
 end
 
-lorenz96_true = System(lorenz96, Dict("F1" => 8, "F2" => 8, "F3" => 12, "F4" => 12))
+lorenz96_true = System(lorenz96, Dict("F1" => 8, "F2" => 10, "F3" => 12, "F4" => 14))
 
 lorenz96_err = System(lorenz96, Dict("F1" => 8, "F2" => 8, "F3" => 8, "F4" => 8))
 lorenz96_err2 = System(lorenz96, Dict("F1" => 12, "F2" => 12, "F3" => 12, "F4" => 12))
