@@ -47,7 +47,7 @@ outfreq = 1
 transient = 2000
 x0 = integrator(models[1], x0, t0, transient*outfreq*Δt, Δt, inplace=false)
 R = Symmetric(diagm(0=>0.25*ones(D)))
-ens_err = Symmetric(diagm(0=>0.2*ones(D)))
+ens_err = Symmetric(diagm(0=>0.25*ones(D)))
 fcst = true
 da = false
 x0 = x0[end, :]
@@ -60,12 +60,13 @@ n_cycles = 5000
 ρ = 1e-4
 
 window = 1
+
 infos = Vector(undef, n_models)
-for model=1:0#length(models)
+for model=1:length(models)
     model_errs = [0.1*diagm(0=>ones(D))]#Vector{Matrix{Float64}}(undef, 1)]
     biases = [zeros(D)]
 
-    ens_size = cumsum(ens_sizes)[n_models]#ens_sizes[model]
+    ens_size = ens_sizes[model]
     ensembles = [x0 .+ rand(MvNormal(R), ens_size)]#cumsum(ens_sizes)[n_models])]
 
     info, _, _ = ens_forecast.mmda(x0=x0, ensembles=ensembles,
@@ -83,7 +84,7 @@ for model=1:0#length(models)
     infos[model] = info
 end
 
-window = 4
+#window = 4
 #incs1 = hcat(info1.increments...)
 #incs2 = hcat(info2.increments...)
 #model_errs = [cov(incs1'), cov(incs2')]

@@ -15,10 +15,12 @@ struct Forecast_Info
     crps
     crps_fcst
     spread
+    spread_fcst
     Q_hist
     Q_true_hist
     bias_hist
     analyses
+    model_errs
 end
 
 xskillscore = pyimport("xskillscore")
@@ -72,7 +74,7 @@ function mmda(; x0::AbstractVector{float_type},
                 Δt::float_type, window::int_type, n_cycles::int_type,
                 outfreq::int_type, model_sizes::AbstractVector{int_type},
                 R::Symmetric{float_type}, ens_err=false, ρ::float_type,
-                mmm::Bool=false, fcst=false, da=true,
+                mmm::Bool=false, fcst=false, da=true, save_Q_hist=false,
                 save_analyses::Bool=false, prev_analyses=nothing) where {float_type<:AbstractFloat, int_type<:Integer}
     n_models = length(models)
     obs_err_dist = MvNormal(R)
@@ -85,10 +87,16 @@ function mmda(; x0::AbstractVector{float_type},
     errs_fcst = Array{float_type}(undef, n_cycles, model_sizes[1])
     crps = Array{float_type}(undef, n_cycles)
     crps_fcst = Array{float_type}(undef, n_cycles)
-    Q_hist = Array{Matrix{float_type}}(undef, n_models, n_cycles)
-    Q_true_hist = Array{Matrix{float_type}}(undef, n_models, n_cycles)
+    Q_hist = nothing
+    Q_true_hist = nothing
+    if save_Q_hist
+        Q_hist = Array{Matrix{float_type}}(undef, n_models, n_cycles)
+        Q_true_hist = Array{Matrix{float_type}}(undef, n_models, n_cycles)
+    end
     bias_hist = Array{Vector{float_type}}(undef, n_models, n_cycles)
     spread = Array{float_type}(undef, n_cycles)
+    spread_fcst = Array{float_type}(undef, n_cycles)
+
     if save_analyses
         analyses = Array{float_type}(undef, n_cycles, model_sizes[1], sum(ens_sizes))
     else
@@ -135,8 +143,10 @@ function mmda(; x0::AbstractVector{float_type},
                 println("not PSD")
             end
 
-            Q_hist[model, cycle] = Q
-            Q_true_hist[model, cycle] = Q_true
+            if save_Q_hist
+                Q_hist[model, cycle] = Q
+                Q_true_hist[model, cycle] = Q_true
+            end
             model_errs[model] = Q
             bias_hist[model, cycle] = b
             biases[model] = b
@@ -165,7 +175,7 @@ function mmda(; x0::AbstractVector{float_type},
 
                     P_f = cov(E_model')
                     P_f_diag = Diagonal(diagm(0=>diag(P_f)))
-		            P_f_inv = Symmetric(inv(P_f_diag))#(localization.*P_f))
+	                P_f_inv = Symmetric(inv(P_f_diag))#(localization.*P_f))
 
                     # Assimilate the forecast of each ensemble member of the current
                     # model as if it were an observation
@@ -181,13 +191,15 @@ function mmda(; x0::AbstractVector{float_type},
             ensembles = ensembles_new
         end
 
-        errs_fcst[cycle, :] = mean(hcat(ensembles...), dims=2) - x_true
+        E_all = hcat(ensembles...)
+        errs_fcst[cycle, :] = mean(E_all, dims=2) - x_true
 
-	    E_corr_fcst_array = xarray.DataArray(data=hcat(ensembles...), dims=["dim", "member"])
+	    E_corr_fcst_array = xarray.DataArray(data=E_all, dims=["dim", "member"])
         crps_fcst[cycle] = xskillscore.crps_ensemble(x_true, E_corr_fcst_array).values[1]
+        spread_fcst[cycle] = mean(std(E_all, dims=2))
 
         if da
-            E_a = da_method(E=hcat(ensembles...), R=R, R_inv=R_inv, H=H, y=y, ρ=localization)
+            E_a = da_method(E=E_all, R=R, R_inv=R_inv, H=H, y=y, ρ=localization)
 
             E_corr_array = xarray.DataArray(data=E_a, dims=["dim", "member"])
             crps[cycle] = xskillscore.crps_ensemble(x_true, E_corr_array).values[1]
@@ -228,7 +240,7 @@ function mmda(; x0::AbstractVector{float_type},
         t += window*outfreq*Δt
     end
 
-    return Forecast_Info(errs, errs_fcst, crps, crps_fcst, spread, Q_hist, Q_true_hist, bias_hist, analyses), ensembles, x_true
+    return Forecast_Info(errs, errs_fcst, crps, crps_fcst, spread, spread_fcst, Q_hist, Q_true_hist, bias_hist, analyses, model_errs), ensembles, x_true
 end
 
 end
