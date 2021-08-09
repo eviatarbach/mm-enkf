@@ -21,6 +21,7 @@ struct Forecast_Info
     bias_hist
     analyses
     model_errs
+    inflation_hist
 end
 
 xskillscore = pyimport("xskillscore")
@@ -74,8 +75,9 @@ function mmda(; x0::AbstractVector{float_type},
                 Δt::float_type, window::int_type, n_cycles::int_type,
                 outfreq::int_type, model_sizes::AbstractVector{int_type},
                 R::Symmetric{float_type}, ens_err=false, ρ::float_type,
+                ρ_all=0.01,
                 mmm::Bool=false, fcst=false, da=true, save_Q_hist=false,
-                save_analyses::Bool=false, prev_analyses=nothing) where {float_type<:AbstractFloat, int_type<:Integer}
+                save_analyses::Bool=false, prev_analyses=nothing, leads=1) where {float_type<:AbstractFloat, int_type<:Integer}
     n_models = length(models)
     obs_err_dist = MvNormal(R)
     R_inv = inv(R)
@@ -87,8 +89,8 @@ function mmda(; x0::AbstractVector{float_type},
     errs_fcst = Array{float_type}(undef, n_cycles, model_sizes[1])
     crps = Array{float_type}(undef, n_cycles)
     crps_fcst = Array{float_type}(undef, n_cycles)
-    Q_hist = nothing
-    Q_true_hist = nothing
+    Q_hist = Array{float_type}(undef, n_models, n_cycles)
+    Q_true_hist = Array{float_type}(undef, n_models, n_cycles)
     if save_Q_hist
         Q_hist = Array{Matrix{float_type}}(undef, n_models, n_cycles)
         Q_true_hist = Array{Matrix{float_type}}(undef, n_models, n_cycles)
@@ -96,11 +98,22 @@ function mmda(; x0::AbstractVector{float_type},
     bias_hist = Array{Vector{float_type}}(undef, n_models, n_cycles)
     spread = Array{float_type}(undef, n_cycles)
     spread_fcst = Array{float_type}(undef, n_cycles)
+    inflation_hist = Array{float_type}(undef, n_cycles)
+
+    inflation_all = ones(leads)
 
     if save_analyses
         analyses = Array{float_type}(undef, n_cycles, model_sizes[1], sum(ens_sizes))
     else
         analyses = nothing
+    end
+
+    model_errs_leads = Array{AbstractMatrix{float_type}}(undef, n_models, leads)
+
+    for model=1:n_models
+        for lead=1:leads
+            model_errs_leads[model, lead] = model_errs[model]*lead^2
+        end
     end
 
     orders = []
@@ -116,6 +129,8 @@ function mmda(; x0::AbstractVector{float_type},
         println(cycle)
 
         y = H*x_true + rand(obs_err_dist)
+
+        lead = mod(cycle, leads)
 
         for model=1:n_models
             E = ensembles[model]
@@ -136,7 +151,7 @@ function mmda(; x0::AbstractVector{float_type},
             Q_true = P_true - P_f
             #Q_est = diagm(0=>diag(Q_est))
 
-            Q = ρ*Q_est + (1 - ρ)*model_errs[model]
+            Q = ρ*Q_est + (1 - ρ)*model_errs_leads[model, lead + 1]
 
             if !isposdef(Q)
                 Q = make_psd(Q)
@@ -146,12 +161,15 @@ function mmda(; x0::AbstractVector{float_type},
             if save_Q_hist
                 Q_hist[model, cycle] = Q
                 Q_true_hist[model, cycle] = Q_true
+            else
+                Q_hist[model, cycle] = tr(Q)
+                Q_true_hist[model, cycle] = tr(Q_true)
             end
-            model_errs[model] = Q
+            model_errs_leads[model, lead + 1] = Q
             bias_hist[model, cycle] = b
             biases[model] = b
 
-            E += rand(MvNormal(model_errs[model]), ens_sizes[model])
+            E += rand(MvNormal(model_errs_leads[model, lead + 1]), ens_sizes[model])
 
             ensembles[model] = E
         end
@@ -192,6 +210,21 @@ function mmda(; x0::AbstractVector{float_type},
         end
 
         E_all = hcat(ensembles...)
+
+	if (~mmm & (n_models > 1))
+            x_m = mean(E_all, dims=2)
+            innovation = y - H*x_m
+
+            P_e = innovation*innovation'
+            P_f = Symmetric(cov(E_all'))
+            λ = tr(P_e - R)/tr(H*P_f*H')
+
+            inflation_all[lead + 1] = ρ_all*λ + (1 - ρ_all)*inflation_all[lead + 1]
+	        inflation_hist[cycle] = inflation_all[lead + 1]
+
+            E_all = x_m .+ sqrt(inflation_all[lead + 1])*(E_all .- x_m)
+        end
+
         errs_fcst[cycle, :] = mean(E_all, dims=2) - x_true
 
 	    E_corr_fcst_array = xarray.DataArray(data=E_all, dims=["dim", "member"])
@@ -210,10 +243,12 @@ function mmda(; x0::AbstractVector{float_type},
                 analyses[cycle, :, :] = E_a
             end
             errs[cycle, :] = mean(E_a, dims=2) - x_true
+        else
+            E_a = E_all
         end
 
         for model=1:n_models
-            if fcst
+            if fcst & (mod(cycle, leads) == 0)
                 E = x_true .+ rand(MvNormal(ens_err), ens_sizes[model])
             elseif prev_analyses !== nothing
                 E = prev_analyses[cycle, :, [0; cumsum(ens_sizes)][model]+1:[0; cumsum(ens_sizes)][model+1]]
@@ -240,7 +275,7 @@ function mmda(; x0::AbstractVector{float_type},
         t += window*outfreq*Δt
     end
 
-    return Forecast_Info(errs, errs_fcst, crps, crps_fcst, spread, spread_fcst, Q_hist, Q_true_hist, bias_hist, analyses, model_errs), ensembles, x_true
+    return Forecast_Info(errs, errs_fcst, crps, crps_fcst, spread, spread_fcst, Q_hist, Q_true_hist, bias_hist, analyses, model_errs_leads, inflation_hist), ensembles, x_true
 end
 
 end

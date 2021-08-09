@@ -1,3 +1,5 @@
+using Serialization
+
 using Statistics
 using LinearAlgebra
 using Random
@@ -21,8 +23,7 @@ using BandedMatrices
 Random.seed!(1)
 
 D = 40
-models = [Models.lorenz96_err.func, Models.lorenz96_err2.func, Models.lorenz96_err3.func,
-	  Models.lorenz96_err4.func]
+models = [Models.lorenz96_err.func, Models.lorenz96_err2.func, Models.lorenz96_err3.func, Models.lorenz96_err4.func]
 #models = [Models.lorenz96_true.func, Models.lorenz96_true.func]
 #C = brand(40,40,20,20) .- 0.4
 diag1 = 0.1*ones(D)
@@ -50,23 +51,24 @@ R = Symmetric(diagm(0=>0.25*ones(D)))
 ens_err = Symmetric(diagm(0=>0.25*ones(D)))
 fcst = true
 da = false
+leads = 7
 x0 = x0[end, :]
 #ensembles = [ens_forecast.init_ens(model=models[model], integrator=integrator,
 #                                   x0=x0, t0=t0, outfreq=outfreq, Δt=Δt,
 #                                   ens_size=ens_sizes[model]) for model=1:n_models]
 #x0 = ensembles[1][:, end]
-n_cycles = 5000
+n_cycles = 10000*leads
 #spinup = 14600
-ρ = 1e-4
+ρ = 1e-3
 
-window = 1
+window = 4
 
 infos = Vector(undef, n_models)
-for model=1:length(models)
+for model=1:n_models
     model_errs = [0.1*diagm(0=>ones(D))]#Vector{Matrix{Float64}}(undef, 1)]
     biases = [zeros(D)]
 
-    ens_size = ens_sizes[model]
+    ens_size = cumsum(ens_sizes)[n_models]
     ensembles = [x0 .+ rand(MvNormal(R), ens_size)]#cumsum(ens_sizes)[n_models])]
 
     info, _, _ = ens_forecast.mmda(x0=x0, ensembles=ensembles,
@@ -80,7 +82,7 @@ for model=1:length(models)
                          ens_sizes=[ens_size], Δt=Δt, window=window,
                          n_cycles=n_cycles, outfreq=outfreq,
                          model_sizes=model_sizes, R=R, ens_err=ens_err,
-                         ρ=ρ, fcst=fcst, da=da, save_analyses=true)
+                         ρ=ρ, fcst=fcst, da=da, save_analyses=true, leads=leads)
     infos[model] = info
 end
 
@@ -104,7 +106,7 @@ info_mm, _, _ = ens_forecast.mmda(x0=x0, ensembles=ensembles, models=models,
                          ens_sizes=ens_sizes, Δt=Δt, window=window,
                          n_cycles=n_cycles, outfreq=outfreq,
                          model_sizes=model_sizes, R=R, ens_err=ens_err,
-			 ρ=ρ, fcst=fcst, da=da)#, prev_analyses=infos[1].analyses)
+			 ρ=ρ, fcst=fcst, da=da, leads=leads)#, prev_analyses=infos[1].analyses)
 
 biases = [zeros(D), zeros(D), zeros(D), zeros(D)]#[mean(infos[1].bias_hist[1000:end]), mean(infos[2].bias_hist[1000:end])]
 #[zeros(D), zeros(D)]
@@ -121,4 +123,6 @@ info_mm2, _, _ = ens_forecast.mmda(x0=x0, ensembles=ensembles, models=models,
                          ens_sizes=ens_sizes, Δt=Δt, window=window,
                          n_cycles=n_cycles, outfreq=outfreq,
                          model_sizes=model_sizes, R=R, ens_err=ens_err,
-			 ρ=ρ, mmm=true, fcst=fcst, da=da)#, prev_analyses=infos[1].analyses)
+			 ρ=ρ, mmm=true, fcst=fcst, da=da, leads=leads)#, prev_analyses=infos[1].analyses)
+
+serialize(open("out_lorenz_leap", "w"), [infos, info_mm, info_mm2])
