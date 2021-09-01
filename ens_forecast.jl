@@ -192,8 +192,8 @@ function mmda(; x0::AbstractVector{float_type},
                     H_model = obs_ops[order[model]]
 
                     P_f = cov(E_model')
-                    P_f_diag = Diagonal(diagm(0=>diag(P_f)))
-	                P_f_inv = Symmetric(inv(P_f_diag))#(localization.*P_f))
+                    # P_f_diag = Tridiagonal(diagm(0=>diag(P_f)))
+	                P_f_inv = Symmetric(inv(localization.*P_f))
 
                     # Assimilate the forecast of each ensemble member of the current
                     # model as if it were an observation

@@ -40,7 +40,7 @@ ens_sizes = [20, 20, 20, 20]
 model_sizes = [D, D, D, D]
 integrator = Integrators.rk4
 da_method = DA.etkf
-localization = DA.gaspari_cohn(10, D)
+localization = DA.gaspari_cohn(4, D)
 x0 = randn(D)
 t0 = 0.0
 Δt = 0.05
@@ -51,15 +51,17 @@ R = Symmetric(diagm(0=>0.25*ones(D)))
 ens_err = Symmetric(diagm(0=>0.25*ones(D)))
 fcst = true
 da = false
-leads = 7
+leads = 1
 x0 = x0[end, :]
 #ensembles = [ens_forecast.init_ens(model=models[model], integrator=integrator,
 #                                   x0=x0, t0=t0, outfreq=outfreq, Δt=Δt,
 #                                   ens_size=ens_sizes[model]) for model=1:n_models]
 #x0 = ensembles[1][:, end]
-n_cycles = 10000*leads
+n_cycles = 3000*leads
 #spinup = 14600
 ρ = 1e-3
+
+save_Q_hist = false
 
 window = 4
 
@@ -82,7 +84,8 @@ for model=1:n_models
                          ens_sizes=[ens_size], Δt=Δt, window=window,
                          n_cycles=n_cycles, outfreq=outfreq,
                          model_sizes=model_sizes, R=R, ens_err=ens_err,
-                         ρ=ρ, fcst=fcst, da=da, save_analyses=true, leads=leads)
+                         ρ=ρ, fcst=fcst, da=da, save_analyses=false, leads=leads,
+                         save_Q_hist=save_Q_hist)
     infos[model] = info
 end
 
@@ -106,7 +109,7 @@ info_mm, _, _ = ens_forecast.mmda(x0=x0, ensembles=ensembles, models=models,
                          ens_sizes=ens_sizes, Δt=Δt, window=window,
                          n_cycles=n_cycles, outfreq=outfreq,
                          model_sizes=model_sizes, R=R, ens_err=ens_err,
-			 ρ=ρ, fcst=fcst, da=da, leads=leads)#, prev_analyses=infos[1].analyses)
+			 ρ=ρ, fcst=fcst, da=da, leads=leads, save_Q_hist=save_Q_hist)#, prev_analyses=infos[1].analyses)
 
 biases = [zeros(D), zeros(D), zeros(D), zeros(D)]#[mean(infos[1].bias_hist[1000:end]), mean(infos[2].bias_hist[1000:end])]
 #[zeros(D), zeros(D)]
@@ -123,6 +126,6 @@ info_mm2, _, _ = ens_forecast.mmda(x0=x0, ensembles=ensembles, models=models,
                          ens_sizes=ens_sizes, Δt=Δt, window=window,
                          n_cycles=n_cycles, outfreq=outfreq,
                          model_sizes=model_sizes, R=R, ens_err=ens_err,
-			 ρ=ρ, mmm=true, fcst=fcst, da=da, leads=leads)#, prev_analyses=infos[1].analyses)
+			 ρ=ρ, mmm=true, fcst=fcst, da=da, leads=leads, save_Q_hist=save_Q_hist)#, prev_analyses=infos[1].analyses)
 
-serialize(open("out_lorenz_leap", "w"), [infos, info_mm, info_mm2])
+# #serialize(open("out_lorenz_leap", "w"), [infos, info_mm, info_mm2])
