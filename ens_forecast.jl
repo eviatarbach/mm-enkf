@@ -66,7 +66,7 @@ end
 function mmda(; x0::AbstractVector{float_type},
                 ensembles::AbstractVector{<:AbstractMatrix{float_type}},
                 models::AbstractVector{<:Function}, model_true::Function,
-                obs_ops::AbstractVector{<:AbstractMatrix},
+                obs_ops::AbstractVector{<:AbstractMatrix}, H_true=I,
                 mappings,
                 model_errs::AbstractVector{<:Union{AbstractMatrix{float_type}, Nothing}},
                 model_errs_prescribed,
@@ -77,7 +77,7 @@ function mmda(; x0::AbstractVector{float_type},
                 outfreq::int_type, model_sizes::AbstractVector{int_type},
                 R::Symmetric{float_type}, ens_errs=false, ρ::float_type,
                 ρ_all=0.01, all_orders::Bool=true,
-                combine_forecasts::Bool=true, fcst=false, assimilate_obs=true, save_Q_hist=false,
+                combine_forecasts::Bool=true, gen_ensembles=false, assimilate_obs=true, save_Q_hist=false,
                 save_analyses::Bool=false, prev_analyses=nothing, leads=1,
                 ref_model=1) where {float_type<:AbstractFloat, int_type<:Integer}
     n_models = length(models)
@@ -86,8 +86,8 @@ function mmda(; x0::AbstractVector{float_type},
 
     x_true = x0
 
-    errs = Array{float_type}(undef, n_cycles, model_sizes[1])
-    errs_fcst = Array{float_type}(undef, n_cycles, model_sizes[1])
+    errs = Array{float_type}(undef, n_cycles, model_sizes[ref_model])
+    errs_fcst = Array{float_type}(undef, n_cycles, model_sizes[ref_model])
     crps = Array{float_type}(undef, n_cycles)
     crps_fcst = Array{float_type}(undef, n_cycles)
     Q_hist = Array{float_type}(undef, n_models, n_cycles)
@@ -104,7 +104,7 @@ function mmda(; x0::AbstractVector{float_type},
     inflation_all = ones(leads)
 
     if save_analyses
-        analyses = Array{float_type}(undef, n_cycles, model_sizes[1], sum(ens_sizes))
+        analyses = Array{float_type}(undef, n_cycles, model_sizes[ref_model], sum(ens_sizes))
     else
         analyses = nothing
     end
@@ -135,7 +135,7 @@ function mmda(; x0::AbstractVector{float_type},
     for cycle=1:n_cycles
         println(cycle)
 
-        y = obs_ops[ref_model]*x_true + rand(obs_err_dist)
+        y = H_true*x_true + rand(obs_err_dist)
 
         lead = mod(cycle, leads)
 
@@ -145,7 +145,7 @@ function mmda(; x0::AbstractVector{float_type},
             H_model_prime = obs_ops[model]
 
             x_m = mean(E, dims=2)
-            m = ens_sizes[model]
+            #m = ens_sizes[model]
             #P_true = (E .- x_true)*(E .- x_true)'/(m - 1)#(x_true - x_m)*(x_true - x_m)'
             innovation = y - H_model_prime*x_m
             P_e = innovation*innovation'
@@ -213,11 +213,7 @@ function mmda(; x0::AbstractVector{float_type},
         end
 
         if (n_models > 1) & (combine_forecasts)
-            if all_orders
-                ensembles = ensembles_new
-            else
-                ensembles = [ensembles_new[ref_model]]
-            end
+            ensembles = ensembles_new
         end
 
         if all_orders & (~all(model_sizes[1] .== model_sizes))
@@ -231,7 +227,7 @@ function mmda(; x0::AbstractVector{float_type},
         if all_orders
             E_all = hcat([mappings[model, ref_model]*ensembles[model] for model=1:n_models]...)
         else
-            E_all = ensembles
+            E_all = ensembles[1]
         end
 
 	    if (combine_forecasts & (n_models > 1))
@@ -250,10 +246,10 @@ function mmda(; x0::AbstractVector{float_type},
             E_all = x_m .+ sqrt(inflation_all[lead + 1])*(E_all .- x_m)
         end
 
-        errs_fcst[cycle, :] = mean(E_all, dims=2) - x_true
+        errs_fcst[cycle, :] = mean(E_all, dims=2) - pinv(obs_ops[ref_model])*H_true*x_true
 
 	    E_corr_fcst_array = xarray.DataArray(data=E_all, dims=["dim", "member"])
-        crps_fcst[cycle] = xskillscore.crps_ensemble(x_true, E_corr_fcst_array).values[1]
+        crps_fcst[cycle] = xskillscore.crps_ensemble(pinv(obs_ops[ref_model])*H_true*x_true, E_corr_fcst_array).values[1]
         spread_fcst[cycle] = mean(std(E_all, dims=2))
 
         if assimilate_obs
@@ -274,8 +270,8 @@ function mmda(; x0::AbstractVector{float_type},
         end
 
         for model=1:n_models
-            if fcst & (mod(cycle, leads) == 0)
-                E = x_true .+ rand(MvNormal(ens_errs[model]), ens_sizes[model])
+            if gen_ensembles & (mod(cycle, leads) == 0)
+                E = mappings[ref_model, model]*x_true .+ rand(MvNormal(ens_errs[model]), ens_sizes[model])
             elseif prev_analyses !== nothing
                 E = prev_analyses[cycle, :, [0; cumsum(ens_sizes)][model]+1:[0; cumsum(ens_sizes)][model+1]]
             else
