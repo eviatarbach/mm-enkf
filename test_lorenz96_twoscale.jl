@@ -52,7 +52,7 @@ transient = 2000
 x0 = integrator(models[1], x0, t0, transient*outfreq*Δt, Δt, inplace=false)
 R = Symmetric(diagm(0=>0.25*ones(D1)))
 ens_errs = [Symmetric(diagm(0=>0.25*ones(D1))), Symmetric(diagm(0=>0.25*ones(D2)))]
-gen_ensembles = false
+gen_ensembles = true
 assimilate_obs = false
 all_orders = false
 leads = 1
@@ -62,7 +62,7 @@ x0 = x0[end, :]
 #                                   x0=x0, t0=t0, outfreq=outfreq, Δt=Δt,
 #                                   ens_size=ens_sizes[model]) for model=1:n_models]
 #x0 = ensembles[1][:, end]
-n_cycles = 100*leads
+n_cycles = 1000*leads
 #spinup = 14600
 ρ = 1e-3
 
@@ -75,7 +75,7 @@ for model=1:n_models
     model_errs = [0.1*diagm(0=>ones(model_sizes[model]))]#Vector{Matrix{Float64}}(undef, 1)]
     biases = [zeros(model_sizes[model])]
 
-    ens_size = cumsum(ens_sizes)[n_models]
+    ens_size = ens_sizes[model]
     ensembles = [mappings[ref_model, model]*x0 .+ rand(MvNormal(ens_errs[model]), ens_size)]#cumsum(ens_sizes)[n_models])]
 
     info, _, _ = ens_forecast.mmda(x0=x0, ensembles=ensembles,
@@ -88,7 +88,7 @@ for model=1:n_models
                          localization=localization,
                          ens_sizes=[ens_size], Δt=Δt, window=window,
                          n_cycles=n_cycles, outfreq=outfreq,
-                         model_sizes=[model_sizes[model]], R=R, ens_errs=ens_errs,
+                         model_sizes=[model_sizes[model]], R=R, ens_errs=[ens_errs[model]],
                          ρ=ρ, gen_ensembles=gen_ensembles, assimilate_obs=assimilate_obs, save_analyses=false, leads=leads,
                          save_Q_hist=save_Q_hist, mappings=mappings[model:model, model:model])
     infos[model] = info

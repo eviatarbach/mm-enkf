@@ -270,8 +270,8 @@ function mmda(; x0::AbstractVector{float_type},
         end
 
         for model=1:n_models
-            if gen_ensembles & (mod(cycle, leads) == 0)
-                E = mappings[ref_model, model]*x_true .+ rand(MvNormal(ens_errs[model]), ens_sizes[model])
+            if gen_ensembles & (mod(cycle, leads) == 0) # ??
+                E = mappings[ref_model, model]*pinv(obs_ops[ref_model])*H_true*x_true .+ rand(MvNormal(ens_errs[model]), ens_sizes[model])
             elseif prev_analyses !== nothing
                 E = prev_analyses[cycle, :, [0; cumsum(ens_sizes)][model]+1:[0; cumsum(ens_sizes)][model+1]]
             else
