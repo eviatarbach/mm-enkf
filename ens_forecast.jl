@@ -200,12 +200,18 @@ function mmda(; x0::AbstractVector{float_type},
 
                     P_f = cov(E_model')
                     # P_f_diag = Tridiagonal(diagm(0=>diag(P_f)))
-	                P_f_inv = Symmetric(inv((mappings[ref_model, order[model]]*localization*mappings[ref_model, order[model]]').*P_f))
+                    if localization !== nothing
+                        P_f = (mappings[ref_model, order[model]]*localization*mappings[ref_model, order[model]]').*P_f
+	                    P_f_inv = Symmetric(inv(P_f))
+                    else
+                        P_f = diagm(diag(P_f))
+                        P_f_inv = Symmetric(inv(P_f))
+                    end
 
                     # Assimilate the forecast of each ensemble member of the current
                     # model as if it were an observation
-                    E = da_method(E=E, R=Symmetric(Matrix(P_f_inv)), R_inv=P_f_inv, H=H_model, y=mean(E_model, dims=2)[:, 1],
-                                  ρ=localization)
+                    E = da_method(E=E, R=Symmetric(Matrix(P_f)), R_inv=P_f_inv, H=H_model, y=mean(E_model, dims=2)[:, 1],
+                                  ρ=nothing)
 
                     ensembles_new[i] = E
                 end
@@ -257,14 +263,14 @@ function mmda(; x0::AbstractVector{float_type},
                             y=y, ρ=localization)
 
             E_corr_array = xarray.DataArray(data=E_a, dims=["dim", "member"])
-            crps[cycle] = xskillscore.crps_ensemble(x_true, E_corr_array).values[1]
+            crps[cycle] = xskillscore.crps_ensemble(pinv(obs_ops[ref_model])*H_true*x_true, E_corr_array).values[1]
 
             spread[cycle] = mean(std(E_a, dims=2))
 
             if save_analyses
                 analyses[cycle, :, :] = E_a
             end
-            errs[cycle, :] = mean(E_a, dims=2) - x_true
+            errs[cycle, :] = mean(E_a, dims=2) - pinv(obs_ops[ref_model])*H_true*x_true
         else
             E_a = E_all
         end

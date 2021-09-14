@@ -24,7 +24,7 @@ Random.seed!(1)
 
 D1 = 40
 D2 = 20
-models = [Models.lorenz96_true.func, Models.lorenz96_half_true.func]
+models = [Models.lorenz96_err2.func, Models.lorenz96_half_true.func]
 model_errs_prescribed = [nothing, nothing, nothing, nothing]
 model_true = Models.lorenz96_true.func
 n_models = length(models)
