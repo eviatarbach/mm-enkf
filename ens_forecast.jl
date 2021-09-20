@@ -7,6 +7,7 @@ using LinearAlgebra
 using Random
 
 using Distributions
+using ProgressMeter
 using PyCall
 
 struct Forecast_Info
@@ -132,29 +133,39 @@ function mmda(; x0::AbstractVector{float_type},
 
     t = 0.0
 
-    for cycle=1:n_cycles
-        println(cycle)
-
+    @showprogress for cycle=1:n_cycles
         y = H_true*x_true + rand(obs_err_dist)
 
         lead = mod(cycle, leads)
 
         for model=1:n_models
+            model_size = model_sizes[model]
             E = ensembles[model]
 
-            H_model_prime = obs_ops[model]
+            H_m = obs_ops[model]
 
             x_m = mean(E, dims=2)
             #m = ens_sizes[model]
             #P_true = (E .- x_true)*(E .- x_true)'/(m - 1)#(x_true - x_m)*(x_true - x_m)'
-            innovation = y - H_model_prime*x_m
+            innovation = y - H_m*x_m
             P_e = innovation*innovation'
             #b = ρ*innovation[:] + (1 - ρ)*biases[model]
             #E .+= b
             #P_e = (H_model_prime*E .- y)*(H_model_prime*E .- y)'/(m - 1)
             P_f = Symmetric(cov(E'))
 
-            Q_est = pinv(H_model_prime)*(P_e - R - H_model_prime*P_f*H_model_prime')*pinv(H_model_prime)'
+            C = P_e - R - H_m*P_f*H_m'
+            if rank(H_m) < model_size
+                Q_est = pinv(H_m)*C*pinv(H_m)'
+            else
+                A = Array{float_type}(undef, size(R)[1]^2, model_size)
+                for p=1:model_size
+                    Q_p = diagm([zeros(p-1); 1; zeros(model_size-p)])
+                    A[:, p] = vec(H_m*Q_p*H_m')
+                end
+                q = A \ vec(C)
+                Q_est = diagm(q)
+            end
             #Q_true = P_true - P_f
             #Q_est = diagm(0=>diag(Q_est))
 
@@ -162,7 +173,6 @@ function mmda(; x0::AbstractVector{float_type},
 
             if !isposdef(Q)
                 Q = make_psd(Q)
-                println("not PSD")
             end
 
             if save_Q_hist
@@ -202,16 +212,15 @@ function mmda(; x0::AbstractVector{float_type},
                     # P_f_diag = Tridiagonal(diagm(0=>diag(P_f)))
                     if localization !== nothing
                         P_f = (mappings[ref_model, order[model]]*localization*mappings[ref_model, order[model]]').*P_f
-	                    P_f_inv = Symmetric(inv(P_f))
                     else
-                        P_f = diagm(diag(P_f))
-                        P_f_inv = Symmetric(inv(P_f))
+                        P_f = Diagonal(diagm(diag(P_f)))
                     end
+                    P_f_inv = Symmetric(inv(P_f))
 
                     # Assimilate the forecast of each ensemble member of the current
                     # model as if it were an observation
                     E = da_method(E=E, R=Symmetric(Matrix(P_f)), R_inv=P_f_inv, H=H_model, y=mean(E_model, dims=2)[:, 1],
-                                  ρ=nothing)
+                                  ρ=mappings[ref_model, order[model]]*localization*mappings[ref_model, order[model]]')
 
                     ensembles_new[i] = E
                 end
