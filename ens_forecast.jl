@@ -155,7 +155,7 @@ function mmda(; x0::AbstractVector{float_type},
             P_f = Symmetric(cov(E'))
 
             C = P_e - R - H_m*P_f*H_m'
-            if rank(H_m) < model_size
+            if rank(H_m) >= model_size
                 Q_est = pinv(H_m)*C*pinv(H_m)'
             else
                 A = Array{float_type}(undef, size(R)[1]^2, model_size)
