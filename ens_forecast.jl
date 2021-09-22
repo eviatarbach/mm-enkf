@@ -76,7 +76,7 @@ function mmda(; x0::AbstractVector{float_type},
                 ens_sizes::AbstractVector{int_type},
                 Δt::float_type, window::int_type, n_cycles::int_type,
                 outfreq::int_type, model_sizes::AbstractVector{int_type},
-                R::Symmetric{float_type}, ens_errs=false, ρ::float_type,
+                R::Symmetric{float_type}, ens_errs=false, ρ::float_type, Q_p=nothing,
                 ρ_all=0.01, all_orders::Bool=true,
                 combine_forecasts::Bool=true, gen_ensembles=false, assimilate_obs=true, save_Q_hist=false,
                 save_analyses::Bool=false, prev_analyses=nothing, leads=1,
@@ -158,18 +158,17 @@ function mmda(; x0::AbstractVector{float_type},
             if rank(H_m) >= model_size
                 Q_est = pinv(H_m)*C*pinv(H_m)'
             else
-                A = Array{float_type}(undef, size(R)[1]^2, model_size)
-                for p=1:model_size
-                    Q_p = diagm([zeros(p-1); 1; zeros(model_size-p)])
-                    A[:, p] = vec(H_m*Q_p*H_m')
+                A = Array{float_type}(undef, size(R)[1]^2, length(Q_p))
+                for p=1:length(Q_p)
+                    A[:, p] = vec(H_m*Q_p[p]*H_m')
                 end
                 q = A \ vec(C)
-                Q_est = diagm(q)
+                Q_est = sum([q[p]*Q_p[p] for p=1:length(Q_p)])
             end
             #Q_true = P_true - P_f
             #Q_est = diagm(0=>diag(Q_est))
 
-            Q = ρ*Q_est + (1 - ρ)*model_errs_leads[model, lead + 1]
+            Q = Symmetric(ρ*Q_est + (1 - ρ)*model_errs_leads[model, lead + 1])
 
             if !isposdef(Q)
                 Q = make_psd(Q)
