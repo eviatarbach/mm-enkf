@@ -6,18 +6,23 @@ using Statistics
 using LinearAlgebra
 using Distributions
 
-function gaspari_cohn(c, D)
+function gaspari_cohn(r)
+    if 0 <= r < 1
+        G = 1 - 5/3*r^2 + 5/8*r^3 + 1/2*r^4 - 1/4*r^5
+    elseif 1 <= r < 2
+        G = 4 - 5*r + 5/3*r^2 + 5/8*r^3 - 1/2*r^4 + 1/12*r^5 - 2/(3*r)
+    elseif r >= 2
+        G = 0
+    end
+    return G
+end
+
+function gaspari_cohn_localization(c, D)
     ρ = zeros(D, D)
     for i=1:D
         for j=1:i
             r = abs(i - j)/c
-            if 0 <= r < 1
-                G = 1 - 5/3*r^2 + 5/8*r^3 + 1/2*r^4 - 1/4*r^5
-            elseif 1 <= r < 2
-                G = 4 - 5*r + 5/3*r^2 + 5/8*r^3 - 1/2*r^4 + 1/12*r^5 - 2/(3*r)
-            elseif r >= 2
-                G = 0
-            end
+            G = gaspari_cohn(r)
             ρ[i, j] = G
         end
     end

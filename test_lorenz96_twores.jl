@@ -24,7 +24,7 @@ Random.seed!(1)
 
 D1 = 220
 D2 = 20
-models = [Models.lorenz96_twoscale_err.func, Models.lorenz96_true.func]
+models = [Models.lorenz96_twoscale_err.func, Models.lorenz96_half_true.func]
 model_errs_prescribed = [nothing, nothing, nothing, nothing]
 model_true = Models.lorenz96_twoscale_true.func
 n_models = length(models)
@@ -44,7 +44,31 @@ ens_sizes = [20, 20]
 model_sizes = [D1, D2]
 integrator = Integrators.rk4
 da_method = DA.ensrf
-localization = DA.gaspari_cohn(4, D1)
+localization = diagm(ones(D1))
+
+indices = reshape(1:220, 11, :)
+first_layer_indices = indices[1, :]
+second_layer_indices = indices[2:end, :]
+
+c = 4
+for (ii, i) in enumerate(first_layer_indices)
+    for (ij, j) in enumerate(first_layer_indices)
+        r = min(mod(ii - ij, 0:20), mod(ij - ii, 0:20))/c
+        localization[i, j] = DA.gaspari_cohn(r)
+        localization[j, i] = DA.gaspari_cohn(r)
+    end
+end
+
+for i=1:20
+    layer_indices = indices[:, i]
+    for j=layer_indices
+        for k=layer_indices
+            localization[j, k] = 1
+            localization[k, j] = 1
+        end
+    end
+end
+
 x0 = rand(D1)
 t0 = 0.0
 Δt = 0.005

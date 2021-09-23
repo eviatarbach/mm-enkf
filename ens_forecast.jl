@@ -219,7 +219,7 @@ function mmda(; x0::AbstractVector{float_type},
                     # Assimilate the forecast of each ensemble member of the current
                     # model as if it were an observation
                     E = da_method(E=E, R=Symmetric(Matrix(P_f)), R_inv=P_f_inv, H=H_model, y=mean(E_model, dims=2)[:, 1],
-                                  ρ=mappings[ref_model, order[model]]*localization*mappings[ref_model, order[model]]')
+                                  ρ=mappings[ref_model, order[model-1]]*localization*mappings[ref_model, order[model-1]]')
 
                     ensembles_new[i] = E
                 end
