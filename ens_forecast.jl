@@ -1,6 +1,6 @@
 module ens_forecast
 
-export model_err, init_ens, mmda
+export model_err, mmda
 
 using Statistics
 using LinearAlgebra
@@ -48,19 +48,9 @@ function model_err(; model_true::Function, model_err::Function,
     return errs'*errs/(n_samples - 1), mean(errs, dims=1)
 end
 
-function init_ens(; model::Function, integrator::Function,
-                    x0::AbstractVector{float_type}, t0::float_type,
-                    outfreq::int_type, Δt::float_type,
-                    ens_size::int_type) where {float_type<:AbstractFloat,
-                                               int_type<:Integer}
-    E = copy(integrator(model, x0, t0, ens_size*Δt*outfreq, Δt,
-                        inplace=false)[1:outfreq:end, :]')
-    return E
-end
-
-function make_psd(A)
+function make_psd(A, tol=1e-6)
     L, Q = eigen(A)
-    L[L .< 0] .= 1e-6
+    L[L .< 0] .= tol
     return Symmetric(Q*diagm(0=>L)*inv(Q))
 end
 
@@ -71,7 +61,6 @@ function mmda(; x0::AbstractVector{float_type},
                 mappings,
                 model_errs::AbstractVector{<:Union{AbstractMatrix{float_type}, Nothing}},
                 model_errs_prescribed,
-                biases::AbstractVector{<:Union{AbstractVector{float_type}, Nothing}},
                 integrator::Function, da_method::Function, localization,
                 ens_sizes::AbstractVector{int_type},
                 Δt::float_type, window::int_type, n_cycles::int_type,
@@ -97,7 +86,6 @@ function mmda(; x0::AbstractVector{float_type},
         Q_hist = Array{Matrix{float_type}}(undef, n_models, n_cycles)
         Q_true_hist = Array{Matrix{float_type}}(undef, n_models, n_cycles)
     end
-    bias_hist = Array{Vector{float_type}}(undef, n_models, n_cycles)
     spread = Array{float_type}(undef, n_cycles)
     spread_fcst = Array{float_type}(undef, n_cycles)
     inflation_hist = Array{float_type}(undef, n_cycles)
@@ -145,16 +133,10 @@ function mmda(; x0::AbstractVector{float_type},
             H_m = obs_ops[model]
 
             x_m = mean(E, dims=2)
-            #m = ens_sizes[model]
-            #P_true = (E .- x_true)*(E .- x_true)'/(m - 1)#(x_true - x_m)*(x_true - x_m)'
             innovation = y - H_m*x_m
-            P_e = innovation*innovation'
-            #b = ρ*innovation[:] + (1 - ρ)*biases[model]
-            #E .+= b
-            #P_e = (H_model_prime*E .- y)*(H_model_prime*E .- y)'/(m - 1)
-            P_f = Symmetric(cov(E'))
+            P_p = Symmetric(cov(E'))
 
-            C = P_e - R - H_m*P_f*H_m'
+            C = innovation*innovation' - R - H_m*P_p*H_m'
             if rank(H_m) >= model_size
                 Q_est = pinv(H_m)*C*pinv(H_m)'
             else
@@ -165,8 +147,6 @@ function mmda(; x0::AbstractVector{float_type},
                 q = A \ vec(C)
                 Q_est = sum([q[p]*Q_p[p] for p=1:length(Q_p)])
             end
-            #Q_true = P_true - P_f
-            #Q_est = diagm(0=>diag(Q_est))
 
             Q = Symmetric(ρ*Q_est + (1 - ρ)*model_errs_leads[model, lead + 1])
 
@@ -176,14 +156,10 @@ function mmda(; x0::AbstractVector{float_type},
 
             if save_Q_hist
                 Q_hist[model, cycle] = Q
-                #Q_true_hist[model, cycle] = Q_true
             else
                 Q_hist[model, cycle] = tr(Q)
-                #Q_true_hist[model, cycle] = tr(Q_true)
             end
             model_errs_leads[model, lead + 1] = Q
-            #bias_hist[model, cycle] = b
-            #biases[model] = b
 
             E += rand(MvNormal(model_errs_leads[model, lead + 1]), ens_sizes[model])
 
@@ -208,7 +184,6 @@ function mmda(; x0::AbstractVector{float_type},
                     H_model = mappings[order[1], order[model]]
 
                     P_f = cov(E_model')
-                    # P_f_diag = Tridiagonal(diagm(0=>diag(P_f)))
                     if localization !== nothing
                         P_f = (mappings[ref_model, order[model]]*localization*mappings[ref_model, order[model]]').*P_f
                     else
@@ -284,7 +259,7 @@ function mmda(; x0::AbstractVector{float_type},
         end
 
         for model=1:n_models
-            if gen_ensembles & (mod(cycle, leads) == 0) # ??
+            if gen_ensembles & (mod(cycle, leads) == 0)
                 E = mappings[ref_model, model]*pinv(obs_ops[ref_model])*H_true*x_true .+ rand(MvNormal(ens_errs[model]), ens_sizes[model])
             elseif prev_analyses !== nothing
                 E = prev_analyses[cycle, :, [0; cumsum(ens_sizes)][model]+1:[0; cumsum(ens_sizes)][model+1]]
@@ -316,8 +291,8 @@ function mmda(; x0::AbstractVector{float_type},
     end
 
     return Forecast_Info(errs, errs_fcst, crps, crps_fcst, spread, spread_fcst,
-                         Q_hist, Q_true_hist, bias_hist, analyses,
-                         model_errs_leads, inflation_hist), ensembles, x_true
+                         Q_hist, Q_true_hist, analyses, model_errs_leads,
+                         inflation_hist)
 end
 
 end
