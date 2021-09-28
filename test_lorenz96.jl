@@ -31,7 +31,8 @@ ens_sizes = [20, 20, 20, 20]
 model_sizes = [D, D, D, D]
 integrator = Integrators.rk4
 da_method = DA.ensrf
-localization = DA.gaspari_cohn_localization(4, D)
+localization_radius = 4
+localization = DA.gaspari_cohn_localization(localization_radius, D, cyclic=true)
 x0 = randn(D)
 t0 = 0.0
 Δt = 0.05
@@ -45,6 +46,7 @@ gen_ensembles = false
 all_orders = true
 assimilate_obs = true
 save_Q_hist = false
+save_P_hist = false
 
 leads = 1
 x0 = x[end, :]
@@ -55,7 +57,7 @@ n_cycles = 3000*leads
 window = 4
 
 infos = Vector(undef, n_models)
-for model=1:n_models
+for model=1:0
     model_errs = [0.1*diagm(ones(D))]
 
     ens_size = sum(ens_sizes)
@@ -71,7 +73,8 @@ for model=1:n_models
                                   model_sizes=model_sizes, R=R, ens_errs=ens_errs, ρ=ρ,
                                   gen_ensembles=gen_ensembles,
                                   assimilate_obs=assimilate_obs, save_analyses=false,
-                                  leads=leads, save_Q_hist=save_Q_hist)
+                                  leads=leads, save_Q_hist=save_Q_hist,
+                                  save_P_hist=save_P_hist)
     infos[model] = info
 end
 

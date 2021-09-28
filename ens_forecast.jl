@@ -18,6 +18,7 @@ struct Forecast_Info
     spread
     spread_fcst
     Q_hist
+    P_hist
     analyses
     model_errs
     inflation_hist
@@ -45,7 +46,8 @@ function da_cycles(; x0::AbstractVector{float_type},
                      outfreq::int_type, model_sizes::AbstractVector{int_type},
                      R::Symmetric{float_type}, ens_errs=false, ρ::float_type, Q_p=nothing,
                      ρ_all::float_type=0.01, all_orders::Bool=true,
-                     combine_forecasts::Bool=true, gen_ensembles::Bool=false, assimilate_obs::Bool=true, save_Q_hist::Bool=false,
+                     combine_forecasts::Bool=true, gen_ensembles::Bool=false, assimilate_obs::Bool=true,
+                     save_Q_hist::Bool=false, save_P_hist::Bool=false,
                      save_analyses::Bool=false, prev_analyses=nothing, leads::int_type=1,
                      ref_model::int_type=1) where {float_type<:AbstractFloat, int_type<:Integer}
     n_models = length(models)
@@ -61,6 +63,11 @@ function da_cycles(; x0::AbstractVector{float_type},
     Q_hist = Array{float_type}(undef, n_models, n_cycles)
     if save_Q_hist
         Q_hist = Array{Matrix{float_type}}(undef, n_models, n_cycles)
+    end
+    if save_P_hist
+        P_hist = Array{Matrix{float_type}}(undef, n_models, n_cycles)
+    else
+        P_hist = nothing
     end
     spread = Array{float_type}(undef, n_cycles)
     spread_fcst = Array{float_type}(undef, n_cycles)
@@ -124,6 +131,10 @@ function da_cycles(; x0::AbstractVector{float_type},
             x_m = mean(E, dims=2)
             innovation = y - H_m*x_m
             P_p = Symmetric(cov(E'))
+
+            if save_P_hist
+                P_hist[model, cycle] = P_p
+            end
 
             C = innovation*innovation' - R - H_m*P_p*H_m'
             if rank(H_m) >= model_size
@@ -280,7 +291,7 @@ function da_cycles(; x0::AbstractVector{float_type},
     end
 
     return Forecast_Info(errs, errs_fcst, crps, crps_fcst, spread, spread_fcst, Q_hist,
-                         analyses, model_errs_leads, inflation_hist)
+                         P_hist, analyses, model_errs_leads, inflation_hist)
 end
 
 end

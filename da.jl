@@ -17,16 +17,19 @@ function gaspari_cohn(r)
     return G
 end
 
-function gaspari_cohn_localization(c, D)
-    ρ = zeros(D, D)
+function gaspari_cohn_localization(c, D; cyclic=false)
+    localization = zeros(D, D)
     for i=1:D
         for j=1:i
-            r = abs(i - j)/c
-            G = gaspari_cohn(r)
-            ρ[i, j] = G
+            if cyclic
+                r = min(mod(i - j, 0:D), mod(j - i, 0:D))/c
+            else
+                r = abs(i - j)
+            end
+            localization[i, j] = DA.gaspari_cohn(r)
         end
     end
-    return Symmetric(ρ, :L)
+    return Symmetric(localization, :L)
 end
 
 """
