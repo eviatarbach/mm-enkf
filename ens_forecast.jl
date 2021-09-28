@@ -36,20 +36,24 @@ end
 function da_cycles(; x0::AbstractVector{float_type},
                      ensembles::AbstractVector{<:AbstractMatrix{float_type}},
                      models::AbstractVector{<:Function}, model_true::Function,
-                     obs_ops::AbstractVector{<:AbstractMatrix}, H_true=I,
-                     mappings=nothing,
+                     obs_ops::AbstractVector{<:AbstractMatrix}, H_true::AbstractMatrix=I,
+                     mappings::Union{Matrix{AbstractArray}, Nothing}=nothing,
                      model_errs::AbstractVector{<:Union{AbstractMatrix{float_type}, Nothing}},
                      model_errs_prescribed::AbstractVector{<:Union{AbstractMatrix{float_type}, Nothing}},
-                     integrator::Function, da_method::Function, localization,
-                     ens_sizes::AbstractVector{int_type},
-                     Δt::float_type, window::int_type, n_cycles::int_type,
-                     outfreq::int_type, model_sizes::AbstractVector{int_type},
-                     R::Symmetric{float_type}, ens_errs=false, ρ::float_type, Q_p=nothing,
+                     integrator::Function, da_method::Function,
+                     localization::AbstractMatrix{float_type},
+                     ens_sizes::AbstractVector{int_type}, Δt::float_type, window::int_type,
+                     n_cycles::int_type, outfreq::int_type,
+                     model_sizes::AbstractVector{int_type}, R::Symmetric{float_type},
+                     ens_errs::Union{AbstractVector{<:AbstractMatrix{float_type}}, Nothing}=nothing,
+                     ρ::float_type,
+                     Q_p::Union{AbstractVector{<:AbstractMatrix{float_type}}, Nothing}=nothing,
                      ρ_all::float_type=0.01, all_orders::Bool=true,
-                     combine_forecasts::Bool=true, gen_ensembles::Bool=false, assimilate_obs::Bool=true,
-                     save_Q_hist::Bool=false, save_P_hist::Bool=false,
-                     save_analyses::Bool=false, prev_analyses=nothing, leads::int_type=1,
-                     ref_model::int_type=1) where {float_type<:AbstractFloat, int_type<:Integer}
+                     combine_forecasts::Bool=true, gen_ensembles::Bool=false,
+                     assimilate_obs::Bool=true, save_Q_hist::Bool=false,
+                     save_P_hist::Bool=false, save_analyses::Bool=false,
+                     prev_analyses::Union{AbstractVector{<:AbstractVector{float_type}}, Nothing}=nothing,
+                     leads::int_type=1, ref_model::int_type=1) where {float_type<:AbstractFloat, int_type<:Integer}
     n_models = length(models)
     obs_err_dist = MvNormal(R)
     R_inv = inv(R)
@@ -191,10 +195,17 @@ function da_cycles(; x0::AbstractVector{float_type},
                     end
                     P_f_inv = Symmetric(inv(P_f))
 
+                    if localization !== nothing
+                        localization_m = mappings[ref_model, order[model-1]]*localization*mappings[ref_model, order[model-1]]'
+                    else
+                        localization_m = nothing
+                    end
+
                     # Assimilate the forecast of each ensemble member of the current
                     # model as if it were an observation
-                    E = da_method(E=E, R=Symmetric(Matrix(P_f)), R_inv=P_f_inv, H=H_model, y=mean(E_model, dims=2)[:, 1],
-                                  ρ=mappings[ref_model, order[model-1]]*localization*mappings[ref_model, order[model-1]]')
+                    E = da_method(E=E, R=Symmetric(Matrix(P_f)), R_inv=P_f_inv, H=H_model,
+                                  y=mean(E_model, dims=2)[:, 1],
+                                  localization=localization_m)
 
                     ensembles_new[i] = E
                 end
@@ -243,7 +254,7 @@ function da_cycles(; x0::AbstractVector{float_type},
 
         if assimilate_obs
             E_a = da_method(E=E_all, R=R, R_inv=R_inv, H=obs_ops[ref_model],
-                            y=y, ρ=localization)
+                            y=y, localization=localization)
 
             E_corr_array = xarray.DataArray(data=E_a, dims=["dim", "member"])
             crps[cycle] = xskillscore.crps_ensemble(pinv(obs_ops[ref_model])*H_true*x_true, E_corr_array).values[1]

@@ -38,7 +38,7 @@ Ensemble transform Kalman filter (ETKF)
 function etkf(; E::AbstractMatrix{float_type}, R::Symmetric{float_type},
                 R_inv::Symmetric{float_type},
                 inflation::float_type=1.0, H::AbstractMatrix,
-                y::AbstractVector{float_type}, ρ=nothing) where {float_type<:AbstractFloat}
+                y::AbstractVector{float_type}) where {float_type<:AbstractFloat}
     D, m = size(E)
 
     x_m = mean(E, dims=2)
@@ -59,16 +59,17 @@ end
 function ensrf(; E::AbstractMatrix{float_type}, R::Symmetric{float_type},
                  R_inv::Symmetric{float_type},
                  inflation::float_type=1.0, H::AbstractMatrix,
-                 y::AbstractVector{float_type}, ρ=nothing) where {float_type<:AbstractFloat}
+                 y::AbstractVector{float_type},
+                 localization=nothing) where {float_type<:AbstractFloat}
     D, m = size(E)
 
     x_m = mean(E, dims=2)
     A = E .- x_m
 
-    if ρ === nothing
+    if localization === nothing
         P = inflation*A*A'/(m - 1)
     else
-        P = inflation*ρ.*(A*A')/(m - 1)
+        P = inflation*localization.*(A*A')/(m - 1)
     end
 
     K = P*H'*inv(H*P*H' + R)

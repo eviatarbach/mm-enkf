@@ -57,7 +57,7 @@ n_cycles = 3000*leads
 window = 4
 
 infos = Vector(undef, n_models)
-for model=1:0
+for model=1:n_models
     model_errs = [0.1*diagm(ones(D))]
 
     ens_size = sum(ens_sizes)
