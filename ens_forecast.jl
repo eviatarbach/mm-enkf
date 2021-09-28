@@ -1,6 +1,6 @@
 module ens_forecast
 
-export model_err, mmda
+export da_cycles
 
 using Statistics
 using LinearAlgebra
@@ -18,8 +18,6 @@ struct Forecast_Info
     spread
     spread_fcst
     Q_hist
-    Q_true_hist
-    bias_hist
     analyses
     model_errs
     inflation_hist
@@ -28,48 +26,28 @@ end
 xskillscore = pyimport("xskillscore")
 xarray = pyimport("xarray")
 
-function model_err(; model_true::Function, model_err::Function,
-                     integrator::Function, x0::AbstractVector{float_type},
-                     t0::float_type, outfreq::Integer, Δt::float_type,
-                     window::Integer, n_samples::Integer) where {float_type<:AbstractFloat}
-    D = length(x0)
-
-    errs = Array{float_type}(undef, n_samples, D)
-
-    t = t0
-    x = x0
-    for i=1:n_samples
-        x_true = integrator(model_true, x, t, t + window*outfreq*Δt, Δt)
-        x_err = integrator(model_err, x, t, t + window*outfreq*Δt, Δt)
-        errs[i, :] = x_err - x_true
-        t += window*outfreq*Δt
-        x = x_true
-    end
-    return errs'*errs/(n_samples - 1), mean(errs, dims=1)
-end
-
 function make_psd(A, tol=1e-6)
     L, Q = eigen(A)
     L[L .< 0] .= tol
     return Symmetric(Q*diagm(0=>L)*inv(Q))
 end
 
-function mmda(; x0::AbstractVector{float_type},
-                ensembles::AbstractVector{<:AbstractMatrix{float_type}},
-                models::AbstractVector{<:Function}, model_true::Function,
-                obs_ops::AbstractVector{<:AbstractMatrix}, H_true=I,
-                mappings,
-                model_errs::AbstractVector{<:Union{AbstractMatrix{float_type}, Nothing}},
-                model_errs_prescribed,
-                integrator::Function, da_method::Function, localization,
-                ens_sizes::AbstractVector{int_type},
-                Δt::float_type, window::int_type, n_cycles::int_type,
-                outfreq::int_type, model_sizes::AbstractVector{int_type},
-                R::Symmetric{float_type}, ens_errs=false, ρ::float_type, Q_p=nothing,
-                ρ_all=0.01, all_orders::Bool=true,
-                combine_forecasts::Bool=true, gen_ensembles=false, assimilate_obs=true, save_Q_hist=false,
-                save_analyses::Bool=false, prev_analyses=nothing, leads=1,
-                ref_model=1) where {float_type<:AbstractFloat, int_type<:Integer}
+function da_cycles(; x0::AbstractVector{float_type},
+                     ensembles::AbstractVector{<:AbstractMatrix{float_type}},
+                     models::AbstractVector{<:Function}, model_true::Function,
+                     obs_ops::AbstractVector{<:AbstractMatrix}, H_true=I,
+                     mappings=nothing,
+                     model_errs::AbstractVector{<:Union{AbstractMatrix{float_type}, Nothing}},
+                     model_errs_prescribed::AbstractVector{<:Union{AbstractMatrix{float_type}, Nothing}},
+                     integrator::Function, da_method::Function, localization,
+                     ens_sizes::AbstractVector{int_type},
+                     Δt::float_type, window::int_type, n_cycles::int_type,
+                     outfreq::int_type, model_sizes::AbstractVector{int_type},
+                     R::Symmetric{float_type}, ens_errs=false, ρ::float_type, Q_p=nothing,
+                     ρ_all::float_type=0.01, all_orders::Bool=true,
+                     combine_forecasts::Bool=true, gen_ensembles::Bool=false, assimilate_obs::Bool=true, save_Q_hist::Bool=false,
+                     save_analyses::Bool=false, prev_analyses=nothing, leads::int_type=1,
+                     ref_model::int_type=1) where {float_type<:AbstractFloat, int_type<:Integer}
     n_models = length(models)
     obs_err_dist = MvNormal(R)
     R_inv = inv(R)
@@ -81,10 +59,8 @@ function mmda(; x0::AbstractVector{float_type},
     crps = Array{float_type}(undef, n_cycles)
     crps_fcst = Array{float_type}(undef, n_cycles)
     Q_hist = Array{float_type}(undef, n_models, n_cycles)
-    Q_true_hist = Array{float_type}(undef, n_models, n_cycles)
     if save_Q_hist
         Q_hist = Array{Matrix{float_type}}(undef, n_models, n_cycles)
-        Q_true_hist = Array{Matrix{float_type}}(undef, n_models, n_cycles)
     end
     spread = Array{float_type}(undef, n_cycles)
     spread_fcst = Array{float_type}(undef, n_cycles)
@@ -117,6 +93,19 @@ function mmda(; x0::AbstractVector{float_type},
         order = Array(1:n_models)
         replace!(order, 1=>ref_model, ref_model=>1)
         orders = [order]
+    end
+
+    if mappings === nothing
+        if (~all(model_sizes[1] .== model_sizes))
+            error("Must specify mappings")
+        else
+            mappings = Matrix{AbstractArray}(undef, n_models, n_models)
+            for m1=1:n_models
+                for m2=1:n_models
+                    mappings[m1, m2] = I(model_sizes[1])
+                end
+            end
+        end
     end
 
     t = 0.0
@@ -277,8 +266,8 @@ function mmda(; x0::AbstractVector{float_type},
                 pert = rand(MvNormal(model_errs_prescribed[model]))
             end
             Threads.@threads for i=1:ens_sizes[model]
-                integration = integrator(models[model], E[:, i], t,
-                                         t + window*outfreq*Δt, Δt, inplace=false)
+                integration = integrator(models[model], E[:, i], t, t + window*outfreq*Δt,
+                                         Δt, inplace=false)
                 E[:, i] = integration[end, :] + pert
             end
 
@@ -290,9 +279,8 @@ function mmda(; x0::AbstractVector{float_type},
         t += window*outfreq*Δt
     end
 
-    return Forecast_Info(errs, errs_fcst, crps, crps_fcst, spread, spread_fcst,
-                         Q_hist, Q_true_hist, analyses, model_errs_leads,
-                         inflation_hist)
+    return Forecast_Info(errs, errs_fcst, crps, crps_fcst, spread, spread_fcst, Q_hist,
+                         analyses, model_errs_leads, inflation_hist)
 end
 
 end
