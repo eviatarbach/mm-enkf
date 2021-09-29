@@ -252,7 +252,7 @@ function da_cycles(; x0::AbstractVector{float_type},
         crps_fcst[cycle] = xskillscore.crps_ensemble(pinv(obs_ops[ref_model])*H_true*x_true, E_corr_fcst_array).values[1]
         spread_fcst[cycle] = mean(std(E_all, dims=2))
 
-        if assimilate_obs
+        if assimilate_obs & (mod(cycle, leads) == 0)
             E_a = da_method(E=E_all, R=R, R_inv=R_inv, H=obs_ops[ref_model],
                             y=y, localization=localization)
 
@@ -272,7 +272,7 @@ function da_cycles(; x0::AbstractVector{float_type},
         for model=1:n_models
             if gen_ensembles & (mod(cycle, leads) == 0)
                 E = mappings[ref_model, model]*pinv(obs_ops[ref_model])*H_true*x_true .+ rand(MvNormal(ens_errs[model]), ens_sizes[model])
-            elseif prev_analyses !== nothing
+            elseif (prev_analyses !== nothing) & (mod(cycle, leads) == 0)
                 E = prev_analyses[cycle, :, [0; cumsum(ens_sizes)][model]+1:[0; cumsum(ens_sizes)][model+1]]
             else
                 if all_orders
