@@ -20,6 +20,7 @@ struct Forecast_Info
     Q_hist
     P_hist
     analyses
+    trues
     model_errs
     inflation_hist
 end
@@ -36,7 +37,7 @@ end
 function da_cycles(; x0::AbstractVector{float_type},
                      ensembles::AbstractVector{<:AbstractMatrix{float_type}},
                      models::AbstractVector{<:Function}, model_true::Function,
-                     obs_ops::AbstractVector{<:AbstractMatrix}, H_true::AbstractMatrix=I,
+                     obs_ops::AbstractVector{<:AbstractMatrix}, H_true=I,
                      mappings::Union{Matrix{AbstractArray}, Nothing}=nothing,
                      model_errs::AbstractVector{<:Union{AbstractMatrix{float_type}, Nothing}},
                      model_errs_prescribed::AbstractVector{<:Union{AbstractMatrix{float_type}, Nothing}},
@@ -51,7 +52,7 @@ function da_cycles(; x0::AbstractVector{float_type},
                      ρ_all::float_type=0.01, all_orders::Bool=true,
                      combine_forecasts::Bool=true, gen_ensembles::Bool=false,
                      assimilate_obs::Bool=true, save_Q_hist::Bool=false,
-                     save_P_hist::Bool=false, save_analyses::Bool=false,
+                     save_P_hist::Bool=false, save_analyses::Bool=false, save_trues::Bool=false,
                      prev_analyses::Union{AbstractVector{<:AbstractVector{float_type}}, Nothing}=nothing,
                      leads::int_type=1, ref_model::int_type=1) where {float_type<:AbstractFloat, int_type<:Integer}
     n_models = length(models)
@@ -80,9 +81,16 @@ function da_cycles(; x0::AbstractVector{float_type},
     inflation_all = ones(leads)
 
     if save_analyses
-        analyses = Array{float_type}(undef, n_cycles, model_sizes[ref_model], sum(ens_sizes))
+        analyses = Array{float_type}(undef, n_cycles, model_sizes[ref_model],
+                                     all_orders ? sum(ens_sizes) : ens_sizes[ref_model])
     else
         analyses = nothing
+    end
+
+    if save_trues
+        trues = Array{float_type}(undef, n_cycles, model_sizes[ref_model])
+    else
+        trues = nothing
     end
 
     model_errs_leads = Array{AbstractMatrix{float_type}}(undef, n_models, leads)
@@ -230,7 +238,7 @@ function da_cycles(; x0::AbstractVector{float_type},
             E_all = ensembles[1]
         end
 
-	    if (combine_forecasts & (n_models > 1))
+	    if (n_models > 1)
             H = obs_ops[ref_model]
 
             x_m = mean(E_all, dims=2)
@@ -261,12 +269,17 @@ function da_cycles(; x0::AbstractVector{float_type},
 
             spread[cycle] = mean(std(E_a, dims=2))
 
-            if save_analyses
-                analyses[cycle, :, :] = E_a
-            end
             errs[cycle, :] = mean(E_a, dims=2) - pinv(obs_ops[ref_model])*H_true*x_true
         else
             E_a = E_all
+        end
+
+        if save_analyses
+            analyses[cycle, :, :] = E_a
+        end
+
+        if save_trues
+            trues[cycle, :] = x_true
         end
 
         for model=1:n_models
@@ -302,7 +315,7 @@ function da_cycles(; x0::AbstractVector{float_type},
     end
 
     return Forecast_Info(errs, errs_fcst, crps, crps_fcst, spread, spread_fcst, Q_hist,
-                         P_hist, analyses, model_errs_leads, inflation_hist)
+                         P_hist, analyses, trues, model_errs_leads, inflation_hist)
 end
 
 end

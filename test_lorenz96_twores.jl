@@ -61,8 +61,7 @@ for i=1:20
     layer_indices = indices[:, i]
     for j=layer_indices
         for k=layer_indices
-            localization[j, k] = 1
-            localization[k, j] = 1
+            localization[j, k] = localization[k, j] = 1
         end
     end
 end
@@ -75,12 +74,12 @@ transient = 2000
 x = integrator(models[1], x0, t0, transient*outfreq*Δt, Δt, inplace=false)
 R = Symmetric(diagm(var(x, dims=1)[:]*0.01))
 ens_errs = [R, Symmetric(diagm(0.25*ones(D2)))]
-gen_ensembles = false
-assimilate_obs = true
+gen_ensembles = true
+assimilate_obs = false
 all_orders = false
 save_Q_hist = false
 
-leads = 1
+leads = 5
 ref_model = 1
 x0 = x[end, :]
 
