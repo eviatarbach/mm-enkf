@@ -49,6 +49,8 @@ lorenz96_err2 = System(lorenz96, Dict("F1" => 12, "F2" => 12, "F3" => 12, "F4" =
 lorenz96_err3 = System(lorenz96, Dict("F1" => 14, "F2" => 14, "F3" => 14, "F4" => 14, "N" => 40))
 lorenz96_err4 = System(lorenz96, Dict("F1" => 10, "F2" => 10, "F3" => 10, "F4" => 10, "N" => 40))
 
+lorenz96_err_small = System(lorenz96, Dict("F1" => 7.8, "F2" => 7.9, "F3" => 8.0, "F4" => 8.1, "N" => 40))
+
 lorenz96_half_true = System(lorenz96, Dict("F1" => 8, "F2" => 10, "F3" => 12, "F4" => 14, "N" => 20))
 
 function lorenz96_twoscale(t, u, p)
