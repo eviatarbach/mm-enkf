@@ -53,7 +53,7 @@ function da_cycles(; x0::AbstractVector{float_type},
                      combine_forecasts::Bool=true, gen_ensembles::Bool=false,
                      assimilate_obs::Bool=true, save_Q_hist::Bool=false,
                      save_P_hist::Bool=false, save_analyses::Bool=false, save_trues::Bool=false,
-                     prev_analyses::Union{AbstractVector{<:AbstractVector{float_type}}, Nothing}=nothing,
+                     prev_analyses::Union{AbstractArray{float_type}, Nothing}=nothing,
                      leads::int_type=1, ref_model::int_type=1) where {float_type<:AbstractFloat, int_type<:Integer}
     n_models = length(models)
     obs_err_dist = MvNormal(R)
@@ -287,7 +287,7 @@ function da_cycles(; x0::AbstractVector{float_type},
             if gen_ensembles & (mod(cycle, leads) == 0)
                 E = mappings[ref_model, model]*pinv(obs_ops[ref_model])*H_true*x_true .+ rand(MvNormal(ens_errs[model]), ens_sizes[model])
             elseif (prev_analyses !== nothing) & (mod(cycle, leads) == 0)
-                E = prev_analyses[cycle, :, [0; cumsum(ens_sizes)][model]+1:[0; cumsum(ens_sizes)][model+1]]
+                E = mappings[ref_model, model]*prev_analyses[cycle, :, [0; cumsum(ens_sizes)][model]+1:[0; cumsum(ens_sizes)][model+1]]
             else
                 if all_orders
                     E = mappings[ref_model, model]*E_a[:, [0; cumsum(ens_sizes)][model]+1:[0; cumsum(ens_sizes)][model+1]]
