@@ -41,8 +41,8 @@ function da_cycles(; x0::AbstractVector{float_type},
                      mappings::Union{Matrix{AbstractArray}, Nothing}=nothing,
                      model_errs::AbstractVector{<:Union{AbstractMatrix{float_type}, Nothing}},
                      model_errs_prescribed::AbstractVector{<:Union{AbstractMatrix{float_type}, Nothing}},
-                     integrator::Function, da_method::Function,
-                     localization::AbstractMatrix{float_type},
+                     integrators::AbstractVector{<:Function}, integrator_true::Function,
+                     da_method::Function, localization::AbstractMatrix{float_type},
                      ens_sizes::AbstractVector{int_type}, Δt::float_type, window::int_type,
                      n_cycles::int_type, outfreq::int_type,
                      model_sizes::AbstractVector{int_type}, R::Symmetric{float_type},
@@ -247,6 +247,7 @@ function da_cycles(; x0::AbstractVector{float_type},
             P_e = innovation*innovation'
             P_f = Symmetric(cov(E_all'))
             λ = tr(P_e - R)/tr(H*P_f*H')
+            λ = max(λ, 0)
 
             inflation_all[lead + 1] = ρ_all*λ + (1 - ρ_all)*inflation_all[lead + 1]
 	        inflation_hist[cycle] = inflation_all[lead + 1]
@@ -301,15 +302,15 @@ function da_cycles(; x0::AbstractVector{float_type},
                 pert = rand(MvNormal(model_errs_prescribed[model]))
             end
             Threads.@threads for i=1:ens_sizes[model]
-                integration = integrator(models[model], E[:, i], t, t + window*outfreq*Δt,
-                                         Δt, inplace=false)
+                integration = integrators[model](models[model], E[:, i], t,
+                                                 t + window*outfreq*Δt, Δt, inplace=false)
                 E[:, i] = integration[end, :] + pert
             end
 
             ensembles[model] = E
         end
 
-        x_true = integrator(model_true, x_true, t, t + window*outfreq*Δt, Δt)
+        x_true = integrator_true(model_true, x_true, t, t + window*outfreq*Δt, Δt)
 
         t += window*outfreq*Δt
     end
