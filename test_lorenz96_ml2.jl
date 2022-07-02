@@ -77,11 +77,13 @@ all_orders = false
 assimilate_obs = false
 save_Q_hist = false
 save_P_hist = false
+save_trues = true
+save_analyses = true
 
-leads = 4
+leads = 10
 x0 = x[end, :]
 
-n_cycles = 2000*leads
+n_cycles = 100*leads
 ρ = 1e-4
 ρ_all = 0.0
 
@@ -91,7 +93,7 @@ infos = Vector(undef, n_models)
 for model=1:n_models
     model_errs = [0.1*diagm(ones(D))]
 
-    ens_size = ens_sizes[model]
+    ens_size = sum(ens_sizes)
     ensembles = [x0 .+ rand(MvNormal(R), ens_size)]
 
     info = ens_forecast.da_cycles(x0=x0, ensembles=ensembles, models=[models[model]],
@@ -104,9 +106,10 @@ for model=1:n_models
                                   window=window, n_cycles=n_cycles, outfreq=outfreq,
                                   model_sizes=model_sizes, R=R, ens_errs=ens_errs, ρ=ρ,
                                   ρ_all=ρ_all, gen_ensembles=gen_ensembles,
-                                  assimilate_obs=assimilate_obs, save_analyses=false,
+                                  assimilate_obs=assimilate_obs,
                                   leads=leads, save_Q_hist=save_Q_hist,
-                                  save_P_hist=save_P_hist)
+                                  save_P_hist=save_P_hist, save_trues=save_trues,
+                                  save_analyses=save_analyses)
     infos[model] = info
 end
 
@@ -125,7 +128,8 @@ info_mm = ens_forecast.da_cycles(x0=x0, ensembles=ensembles, models=models,
                                  model_sizes=model_sizes, R=R, ens_errs=ens_errs, ρ=ρ,
                                  ρ_all=ρ_all, all_orders=all_orders, combine_forecasts=true,
                                  gen_ensembles=gen_ensembles, assimilate_obs=assimilate_obs,
-                                 leads=leads, save_Q_hist=save_Q_hist)
+                                 leads=leads, save_Q_hist=save_Q_hist, save_trues=save_trues,
+                                 save_analyses=save_analyses)
 
 ensembles = [x0 .+ rand(MvNormal(R), ens_sizes[model]) for model=1:n_models]
 
@@ -142,4 +146,5 @@ info_mm2 = ens_forecast.da_cycles(x0=x0, ensembles=ensembles, models=models,
                                   model_sizes=model_sizes, R=R, ens_errs=ens_errs, ρ=ρ,
                                   ρ_all=ρ_all, combine_forecasts=false, gen_ensembles=gen_ensembles,
                                   assimilate_obs=assimilate_obs, leads=leads,
-                                  save_Q_hist=save_Q_hist)
+                                  save_Q_hist=save_Q_hist, save_trues=save_trues,
+                                  save_analyses=save_analyses)
