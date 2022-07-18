@@ -57,6 +57,8 @@ n_cycles = 3000*leads
 
 window = 4
 
+Random.seed!(1)
+
 infos = Vector(undef, n_models)
 for model=1:n_models
     model_errs = [0.1*diagm(ones(D))]
@@ -79,6 +81,8 @@ for model=1:n_models
     infos[model] = info
 end
 
+Random.seed!(1)
+
 ensembles = [x0 .+ rand(MvNormal(R), ens_sizes[model]) for model=1:n_models]
 
 model_errs = [0.1*diagm(ones(D)) for model=1:n_models]
@@ -94,6 +98,8 @@ info_mm = ens_forecast.da_cycles(x0=x0, ensembles=ensembles, models=models,
                                  all_orders=all_orders, combine_forecasts=true,
                                  gen_ensembles=gen_ensembles, assimilate_obs=assimilate_obs,
                                  leads=leads, save_Q_hist=save_Q_hist)
+
+Random.seed!(1)
 
 ensembles = [x0 .+ rand(MvNormal(R), ens_sizes[model]) for model=1:n_models]
 

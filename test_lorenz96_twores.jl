@@ -16,8 +16,6 @@ import .Models
 include("integrators.jl")
 import .Integrators
 
-using BandedMatrices
-
 Random.seed!(1)
 
 D1 = 220
@@ -86,6 +84,7 @@ x0 = x[end, :]
 
 n_cycles = 500*leads
 ρ = 1e-3
+ρ_all = 1e-2
 
 window = 10
 
@@ -100,7 +99,7 @@ info_a = ens_forecast.da_cycles(x0=x0, ensembles=ensembles, models=[models[1]],
                                 ens_sizes=[sum(ens_sizes)], Δt=Δt, window=window,
                                 n_cycles=n_cycles, outfreq=outfreq,
                                 model_sizes=[model_sizes[1]], R=R,
-                                ens_errs=[ens_errs[1]], ρ=ρ,
+                                ens_errs=[ens_errs[1]], ρ=ρ, ρ_all=ρ_all,
                                 gen_ensembles=gen_ensembles,
                                 assimilate_obs=true, save_analyses=true, save_trues=true,
                                 leads=1, save_Q_hist=save_Q_hist,
@@ -120,6 +119,7 @@ for model=1:n_models
     else
         analyses = info_a.analyses
     end
+    mapping_true = mappings[1, 2]
     info = ens_forecast.da_cycles(x0=x0, ensembles=ensembles, models=[models[model]],
                                   model_true=model_true, obs_ops=[obs_ops[model]], H_true=I,
                                   model_errs=model_errs,
@@ -130,11 +130,11 @@ for model=1:n_models
                                   ens_sizes=[ens_size], Δt=Δt, window=window,
                                   n_cycles=n_cycles, outfreq=outfreq,
                                   model_sizes=[model_sizes[model]], R=R,
-                                  ens_errs=[ens_errs[model]], ρ=ρ,
+                                  ens_errs=[ens_errs[model]], ρ=ρ, ρ_all=ρ_all,
                                   gen_ensembles=gen_ensembles,
                                   assimilate_obs=assimilate_obs, save_analyses=false,
                                   leads=leads, save_Q_hist=save_Q_hist,
-                                  mappings=mappings[model:model, model:model],
+                                  mappings=mappings[model:model, model:model], mapping_true=mapping_true,
                                   prev_analyses=analyses)
     infos[model] = info
 end
@@ -151,7 +151,7 @@ info_mm = ens_forecast.da_cycles(x0=x0, ensembles=ensembles, models=models,
                                  da_method=da_method, localization=localization,
                                  ens_sizes=ens_sizes, Δt=Δt, window=window,
                                  n_cycles=n_cycles, outfreq=outfreq,
-                                 model_sizes=model_sizes, R=R, ens_errs=ens_errs, ρ=ρ,
+                                 model_sizes=model_sizes, R=R, ens_errs=ens_errs, ρ=ρ, ρ_all=ρ_all,
                                  all_orders=all_orders, combine_forecasts=true,
                                  gen_ensembles=gen_ensembles, assimilate_obs=assimilate_obs,
                                  leads=leads, save_Q_hist=save_Q_hist, ref_model=ref_model,

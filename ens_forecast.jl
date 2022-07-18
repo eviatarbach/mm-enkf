@@ -39,6 +39,7 @@ function da_cycles(; x0::AbstractVector{float_type},
                      models::AbstractVector{<:Function}, model_true::Function,
                      obs_ops::AbstractVector{<:AbstractMatrix}, H_true=I,
                      mappings::Union{Matrix{AbstractArray}, Nothing}=nothing,
+                     mapping_true=I,
                      model_errs::AbstractVector{<:Union{AbstractMatrix{float_type}, Nothing}},
                      model_errs_prescribed::AbstractVector{<:Union{AbstractMatrix{float_type}, Nothing}},
                      integrators::AbstractVector{<:Function}, integrator_true::Function,
@@ -49,7 +50,7 @@ function da_cycles(; x0::AbstractVector{float_type},
                      ens_errs::Union{AbstractVector{<:AbstractMatrix{float_type}}, Nothing}=nothing,
                      ρ::float_type,
                      Q_p::Union{AbstractVector{<:AbstractMatrix{float_type}}, Nothing}=nothing,
-                     ρ_all::float_type=0.01, all_orders::Bool=true,
+                     ρ_all::float_type, all_orders::Bool=true,
                      combine_forecasts::Bool=true, gen_ensembles::Bool=false,
                      assimilate_obs::Bool=true, save_Q_hist::Bool=false,
                      save_P_hist::Bool=false, save_analyses::Bool=false, save_trues::Bool=false,
@@ -97,6 +98,7 @@ function da_cycles(; x0::AbstractVector{float_type},
 
     for model=1:n_models
         for lead=1:leads
+            # Ad hoc initialization inspired by Carrassi, Vannitsem, and Nicolis (2008)
             model_errs_leads[model, lead] = model_errs[model]*lead^2
         end
     end
@@ -162,6 +164,8 @@ function da_cycles(; x0::AbstractVector{float_type},
 
             Q = Symmetric(ρ*Q_est + (1 - ρ)*model_errs_leads[model, lead + 1])
 
+            model_errs_leads[model, lead + 1] = Q
+
             if !isposdef(Q)
                 Q = make_psd(Q)
             end
@@ -171,9 +175,8 @@ function da_cycles(; x0::AbstractVector{float_type},
             else
                 Q_hist[model, cycle] = tr(Q)
             end
-            model_errs_leads[model, lead + 1] = Q
 
-            E += rand(MvNormal(model_errs_leads[model, lead + 1]), ens_sizes[model])
+            E += rand(MvNormal(Q), ens_sizes[model])
 
             ensembles[model] = E
         end
@@ -238,26 +241,24 @@ function da_cycles(; x0::AbstractVector{float_type},
             E_all = ensembles[1]
         end
 
-	    if (n_models > 1)
-            H = obs_ops[ref_model]
+        # Inflation
+        H = obs_ops[ref_model]
 
-            x_m = mean(E_all, dims=2)
-            innovation = y - H*x_m
+        x_m = mean(E_all, dims=2)
+        innovation = y - H*x_m
 
-            P_e = innovation*innovation'
-            P_f = Symmetric(cov(E_all'))
-            λ = tr(P_e - R)/tr(H*P_f*H')
-            λ = max(λ, 0)
+        P_e = innovation*innovation'
+        P_f = Symmetric(cov(E_all'))
+        λ = tr(P_e - R)/tr(H*P_f*H')
 
-            inflation_all[lead + 1] = ρ_all*λ + (1 - ρ_all)*inflation_all[lead + 1]
-	        inflation_hist[cycle] = inflation_all[lead + 1]
+        inflation_all[lead + 1] = ρ_all*λ + (1 - ρ_all)*inflation_all[lead + 1]
+        inflation_hist[cycle] = inflation_all[lead + 1]
 
-            E_all = x_m .+ sqrt(inflation_all[lead + 1])*(E_all .- x_m)
-        end
+        E_all = x_m .+ sqrt(inflation_all[lead + 1])*(E_all .- x_m)
 
-        errs_fcst[cycle, :] = mean(E_all, dims=2) - pinv(obs_ops[ref_model])*H_true*x_true
+        errs_fcst[cycle, :] = mean(E_all, dims=2) - mapping_true*x_true
 
-        true_array = xarray.DataArray(data=pinv(obs_ops[ref_model])*H_true*x_true, dims=["dim"])
+        true_array = xarray.DataArray(data=mapping_true*x_true, dims=["dim"])
 	    E_corr_fcst_array = xarray.DataArray(data=E_all, dims=["dim", "member"])
         crps_fcst[cycle] = xskillscore.crps_ensemble(true_array, E_corr_fcst_array).values[1]
         spread_fcst[cycle] = mean(std(E_all, dims=2))
@@ -271,7 +272,7 @@ function da_cycles(; x0::AbstractVector{float_type},
 
             spread[cycle] = mean(std(E_a, dims=2))
 
-            errs[cycle, :] = mean(E_a, dims=2) - pinv(obs_ops[ref_model])*H_true*x_true
+            errs[cycle, :] = mean(E_a, dims=2) - x_true
         else
             E_a = E_all
         end
@@ -286,7 +287,7 @@ function da_cycles(; x0::AbstractVector{float_type},
 
         for model=1:n_models
             if gen_ensembles & (mod(cycle, leads) == 0)
-                E = mappings[ref_model, model]*pinv(obs_ops[ref_model])*H_true*x_true .+ rand(MvNormal(ens_errs[model]), ens_sizes[model])
+                E = mappings[ref_model, model]*x_true .+ rand(MvNormal(ens_errs[model]), ens_sizes[model])
             elseif (prev_analyses !== nothing) & (mod(cycle, leads) == 0)
                 E = mappings[ref_model, model]*prev_analyses[cycle, :, [0; cumsum(ens_sizes)][model]+1:[0; cumsum(ens_sizes)][model+1]]
             else
