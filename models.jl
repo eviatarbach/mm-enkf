@@ -18,7 +18,7 @@ lorenz63_true = System(lorenz63, Dict("σ" => 10, "β" => 8/3, "ρ" => 28))
 
 lorenz63_err = System(lorenz63, Dict("σ" => 10, "β" => 8/3 - 0.1, "ρ" => 28))
 lorenz63_err2 = System(lorenz63, Dict("σ" => 10 - 0.3, "β" => 8/3, "ρ" => 28.1))
-lorenz63_err3 = System(lorenz63, Dict("σ" => 10.00001, "β" => 8/3, "ρ" => 28))
+lorenz63_err3 = System(lorenz63, Dict("σ" => 10.1, "β" => 8/3, "ρ" => 28))
 lorenz63_err4 = System(lorenz63, Dict("σ" => 10, "β" => (1 + 0.1)*(8/3), "ρ" => 28))
 
 function lorenz96(t, u, p)
@@ -85,6 +85,6 @@ function lorenz96_twoscale(t, u, p)
 end
 
 lorenz96_twoscale_true = System(lorenz96_twoscale, Dict("F1" => 8, "F2" => 10, "F3" => 12, "F4" => 14, "b" => 10, "c" => 10, "h" => 1.0, "N" => 20, "n" => 10))
-lorenz96_twoscale_err = System(lorenz96_twoscale, Dict("F1" => 8, "F2" => 8, "F3" => 8, "F4" => 8, "b" => 10, "c" => 10, "h" => 1.0, "N" => 20, "n" => 10))
+lorenz96_twoscale_err = System(lorenz96_twoscale, Dict("F1" => 8.5, "F2" => 9.5, "F3" => 8, "F4" => 8, "b" => 10, "c" => 10, "h" => 1.0, "N" => 20, "n" => 10))
 
 end

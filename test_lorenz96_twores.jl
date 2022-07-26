@@ -86,7 +86,7 @@ n_cycles = 500*leads
 ρ = 1e-3
 ρ_all = 1e-2
 
-window = 10
+window = 40
 
 ensembles = [mappings[ref_model, 1]*x0 .+ rand(MvNormal(ens_errs[1]), sum(ens_sizes))]
 info_a = ens_forecast.da_cycles(x0=x0, ensembles=ensembles, models=[models[1]],
@@ -116,10 +116,11 @@ for model=1:n_models
 
     if model == 2
         analyses = permutedims(cat([mappings[1, 2]*info_a.analyses[c, :, :] for c=1:n_cycles]..., dims=3), [3, 1, 2])
+        mapping_true = mappings[1, 2]
     else
         analyses = info_a.analyses
+        mapping_true = I
     end
-    mapping_true = mappings[1, 2]
     info = ens_forecast.da_cycles(x0=x0, ensembles=ensembles, models=[models[model]],
                                   model_true=model_true, obs_ops=[obs_ops[model]], H_true=I,
                                   model_errs=model_errs,

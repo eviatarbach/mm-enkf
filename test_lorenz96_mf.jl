@@ -30,7 +30,7 @@ model_true = Models.lorenz96_true
 n_models = length(models)
 obs_ops = [I(D), I(D)]
 H = I(D)
-ens_sizes = [20, 80]
+ens_sizes = [5, 40]
 model_sizes = [D, D]
 integrators = [Integrators.rk4, Integrators.rk4]
 integrator_true = Integrators.rk4
@@ -42,8 +42,8 @@ t0 = 0.0
 Δt = 0.05
 outfreq = 1
 transient = 2000
-x = integrator(models[1], x0, t0, transient*outfreq*Δt, Δt, inplace=false)
-R = Symmetric(diagm(0.25*ones(D)))
+x = integrators[1](models[1], x0, t0, transient*outfreq*Δt, Δt, inplace=false)
+R = Symmetric(diagm(0.45*ones(D)))
 ens_errs = [Symmetric(diagm(0.25*ones(D))), Symmetric(diagm(0.25*ones(D)))]
 gen_ensembles = true
 all_orders = true

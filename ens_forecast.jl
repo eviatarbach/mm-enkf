@@ -164,11 +164,11 @@ function da_cycles(; x0::AbstractVector{float_type},
 
             Q = Symmetric(ρ*Q_est + (1 - ρ)*model_errs_leads[model, lead + 1])
 
-            model_errs_leads[model, lead + 1] = Q
-
             if !isposdef(Q)
                 Q = make_psd(Q)
             end
+
+            model_errs_leads[model, lead + 1] = Q
 
             if save_Q_hist
                 Q_hist[model, cycle] = Q
@@ -263,7 +263,7 @@ function da_cycles(; x0::AbstractVector{float_type},
         crps_fcst[cycle] = xskillscore.crps_ensemble(true_array, E_corr_fcst_array).values[1]
         spread_fcst[cycle] = mean(std(E_all, dims=2))
 
-        if assimilate_obs & (mod(cycle, leads) == 0)
+        if assimilate_obs & (mod(cycle, leads) == leads - 1)
             E_a = da_method(E=E_all, R=R, R_inv=R_inv, H=obs_ops[ref_model],
                             y=y, localization=localization)
 
@@ -272,7 +272,7 @@ function da_cycles(; x0::AbstractVector{float_type},
 
             spread[cycle] = mean(std(E_a, dims=2))
 
-            errs[cycle, :] = mean(E_a, dims=2) - x_true
+            errs[cycle, :] = mean(E_a, dims=2) - mapping_true*x_true
         else
             E_a = E_all
         end
@@ -286,9 +286,9 @@ function da_cycles(; x0::AbstractVector{float_type},
         end
 
         for model=1:n_models
-            if gen_ensembles & (mod(cycle, leads) == 0)
+            if gen_ensembles & (mod(cycle, leads) == leads - 1)
                 E = mappings[ref_model, model]*x_true .+ rand(MvNormal(ens_errs[model]), ens_sizes[model])
-            elseif (prev_analyses !== nothing) & (mod(cycle, leads) == 0)
+            elseif (prev_analyses !== nothing) & (mod(cycle, leads) == leads - 1)
                 E = mappings[ref_model, model]*prev_analyses[cycle, :, [0; cumsum(ens_sizes)][model]+1:[0; cumsum(ens_sizes)][model+1]]
             else
                 if all_orders
