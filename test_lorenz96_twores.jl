@@ -41,6 +41,7 @@ model_sizes = [D1, D2]
 integrators = [Integrators.rk4, Integrators.rk4, Integrators.rk4, Integrators.rk4]
 integrator_true = Integrators.rk4
 da_method = DA.ensrf
+
 localization = diagm(ones(D1))
 
 indices = reshape(1:220, 11, :)
@@ -56,12 +57,17 @@ for (ii, i) in enumerate(first_layer_indices)
     end
 end
 
-for i=1:20
-    layer_indices = indices[:, i]
-    for j=layer_indices
-        for k=layer_indices
-            localization[j, k] = localization[k, j] = 1
-        end
+for (ii, i) in enumerate(first_layer_indices)
+    for j=second_layer_indices[ii]
+        localization[j, i] = localization[i, j] = 1
+    end
+end
+
+for (ii, i) in enumerate(vcat(second_layer_indices...))
+    for (ij, j) in enumerate(vcat(second_layer_indices...))
+        r = min(mod(ii - ij, 0:200), mod(ij - ii, 0:200))/40
+        localization[i, j] = DA.gaspari_cohn(r)
+        localization[j, i] = DA.gaspari_cohn(r)
     end
 end
 
