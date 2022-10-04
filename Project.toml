@@ -1,0 +1,6 @@
+[deps]
+BandedMatrices = "aae01518-5342-5314-be14-df237901396f"
+BlockArrays = "8e7c35d0-a365-5155-bbbb-fb81a777f24e"
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"
+PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
