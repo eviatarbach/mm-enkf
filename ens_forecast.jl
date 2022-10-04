@@ -238,22 +238,20 @@ function da_cycles(; x0::AbstractVector{float_type},
             E_all = ensembles[1]
         end
 
-	    if (n_models > 1)
-            H = obs_ops[ref_model]
+        H = obs_ops[ref_model]
 
-            x_m = mean(E_all, dims=2)
-            innovation = y - H*x_m
+        x_m = mean(E_all, dims=2)
+        innovation = y - H*x_m
 
-            P_e = innovation*innovation'
-            P_f = Symmetric(cov(E_all'))
-            λ = tr(P_e - R)/tr(H*P_f*H')
-            λ = max(λ, 0)
+        P_e = innovation*innovation'
+        P_f = Symmetric(cov(E_all'))
+        λ = tr(P_e - R)/tr(H*P_f*H')
+        λ = max(λ, 0)
 
-            inflation_all[lead + 1] = ρ_all*λ + (1 - ρ_all)*inflation_all[lead + 1]
-	        inflation_hist[cycle] = inflation_all[lead + 1]
+        inflation_all[lead + 1] = ρ_all*λ + (1 - ρ_all)*inflation_all[lead + 1]
+        inflation_hist[cycle] = inflation_all[lead + 1]
 
-            E_all = x_m .+ sqrt(inflation_all[lead + 1])*(E_all .- x_m)
-        end
+        E_all = x_m .+ sqrt(inflation_all[lead + 1])*(E_all .- x_m)
 
         errs_fcst[cycle, :] = mean(E_all, dims=2) - pinv(obs_ops[ref_model])*H_true*x_true
 

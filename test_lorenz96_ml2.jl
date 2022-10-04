@@ -83,7 +83,7 @@ save_analyses = true
 leads = 10
 x0 = x[end, :]
 
-n_cycles = 100*leads
+n_cycles = 1000*leads
 ρ = 1e-4
 ρ_all = 0.0
 
