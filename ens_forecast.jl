@@ -8,7 +8,7 @@ using Random
 
 using Distributions
 using ProgressMeter
-using PyCall
+using PythonCall
 
 struct Forecast_Info
     errs
@@ -259,8 +259,8 @@ function da_cycles(; x0::AbstractVector{float_type},
         errs_fcst[cycle, :] = mean(E_all, dims=2) - mapping_true*x_true
 
         true_array = xarray.DataArray(data=mapping_true*x_true, dims=["dim"])
-	    E_corr_fcst_array = xarray.DataArray(data=E_all, dims=["dim", "member"])
-        crps_fcst[cycle] = xskillscore.crps_ensemble(true_array, E_corr_fcst_array).values[1]
+        E_corr_fcst_array = xarray.DataArray(data=E_all, dims=["dim", "member"])
+        crps_fcst[cycle] = pyconvert(float_type, xskillscore.crps_ensemble(true_array, E_corr_fcst_array).values[1])
         spread_fcst[cycle] = mean(std(E_all, dims=2))
 
         if assimilate_obs & (mod(cycle, leads) == leads - 1)
@@ -268,7 +268,7 @@ function da_cycles(; x0::AbstractVector{float_type},
                             y=y, localization=localization)
 
             E_corr_array = xarray.DataArray(data=E_a, dims=["dim", "member"])
-            crps[cycle] = xskillscore.crps_ensemble(true_array, E_corr_array).values[1]
+            crps[cycle] = pyconvert(float_type, xskillscore.crps_ensemble(true_array, E_corr_array).values[1])
 
             spread[cycle] = mean(std(E_a, dims=2))
 

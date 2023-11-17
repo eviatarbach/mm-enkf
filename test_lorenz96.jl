@@ -3,6 +3,7 @@ using LinearAlgebra
 using Random
 
 using Distributions
+using Plots
 
 include("da.jl")
 import .DA
